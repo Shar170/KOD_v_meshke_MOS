@@ -83,7 +83,6 @@ mfc_info_df = load_mfc_info()
 
 #st.dataframe(mfc_info_df.head())
 
-st.sidebar.image('whiteCat.png', width=100)
 st.title('Проект команды "KOD в мешке"')
 
 st.write('Карта Москвы и МО. Круги отображают выбранный вами район')
@@ -95,8 +94,9 @@ build_type = st.sidebar.selectbox('Выберите тип учреждения'
 show_mfc = st.sidebar.checkbox('Показать учреждения на карте', value=False)
 filter_dict = {'Кол-во живущих':'home','Кол-во работающих':'job','Кол-во проходящях':'move','Логистика':'logistic'}
 filter_type = st.sidebar.selectbox('Выберите оценочный фактор',filter_dict)
-filter_value = st.sidebar.slider('Выберите степень влияния фактора', value=0.5, min_value=0.0, max_value=5.0)
+filter_value = st.sidebar.slider('Выберите степень влияния фактора', value=1.0, min_value=0.0, max_value=5.0, step=0.05)
 #press_button = st.sidebar.button("Do magic!")
+st.sidebar.image('whiteCat.png', width=100)
 
 filter_key = filter_dict[filter_type]
 
@@ -118,6 +118,7 @@ c_locations['mfc_chance'] = c_locations['mfc_chance'] + (c_locations['nearest_mf
 c_locations['mfc_chance'] = c_locations['mfc_chance'] + (filter_value if filter_key == 'logistic' else  (1.0)) * (c_locations['logistic'])
 #нормирование шанса 
 c_locations['mfc_chance'] = c_locations['mfc_chance'].apply(lambda x: 1 + 10* x / 42070.344117)
+c_locations['mfc_score'] = c_locations['mfc_chance'].apply(lambda x: '⭐'*int(x))
 
 #извлекаем ячейки выбранного в меню района Москвы
 if print_all_btn:
@@ -126,15 +127,15 @@ else:
     df = c_locations.loc[c_locations['zid'].isin(loc_names.loc[loc_names['adm_name'] == adm_zone]['cell_zid'])]
 
 #Выводим описание выьранного региона (население, площадь) и информацию 
-st.write(f'''Вы выбрали район "{adm_zone}" сейчас население в нём: {sum(df["customers_cnt_home"].values) + sum(df["customers_cnt_move"].values)}чел. на { df.shape[0]*0.25} км²
+st.write(f'''Вы выбрали район "{adm_zone}" сейчас население в нём: {sum(df["customers_cnt_home"].values) + sum(df["customers_cnt_move"].values)} чел. на { df.shape[0]*0.25} км²
             Вы выбрали фильтрацию по учреждению типа: "{build_type}" с коэффициентом влияния равным {filter_value}
             с учётом того что это будет {filter_type.lower()}.
 ''')
 #Собираем шаблон подсказки для столбцов(ячеек) карты
 if filter_key != 'logistic':
-    tooltip_template = "<b>" + filter_type + " :</b> {customers_cnt_"+filter_key+"} <br/><b>Необходисоть постройки "+build_type+" :</b> {mfc_chance} <br/>"
+    tooltip_template = "<b>" + filter_type + " :</b> {customers_cnt_"+filter_key+"} <br/><b>Необходисоть постройки "+build_type+" :</b> {mfc_score} <br/>"
 else:
-    tooltip_template = "<b>" + filter_type + " :</b> {logistic} <br/><b>Необходисоть постройки "+build_type+" :</b> {mfc_chance} <br/>"
+    tooltip_template = "<b>" + filter_type + " :</b> {logistic} <br/><b>Необходисоть постройки "+build_type+" :</b> {mfc_score} <br/>"
 
 layers=[
         pdk.Layer("ColumnLayer", #слой для отображения колонок вероятности постройки учреждения
@@ -161,10 +162,10 @@ layers=[
 
 if show_mfc:
     layers.append(pdk.Layer("ColumnLayer", #слой для отображения уже существующих МФЦ
-        data=mfc_info_df if print_all_btn else mfc_info_df.loc[adm_zone.lower() == mfc_info_df['District'].str.lower() ],
+        data=mfc_info_df if print_all_btn else mfc_info_df.loc['район '+adm_zone.lower() == mfc_info_df['District'].str.lower() ],
         get_position='[lat,lon]',
         elevation=100,#"WindowCount",
-        elevation_scale=100,
+        elevation_scale=1,
         radius=50,
         get_fill_color=[1,1,255, 200],
         pickable=True,
@@ -201,6 +202,15 @@ map_widget = st.pydeck_chart(world_map)
 
 
 
+
+
+
+#аналитика
+
+col1, col2, col3 = st.columns(3)
+col1.metric("Проживающие кол-во", str(sum(df['customers_cnt_home'].values)+sum(df['customers_cnt_move'].values)) + " чел.", str(sum(df['customers_dlt_home'].values)+sum(df['customers_dlt_move'].values)) + " чел.")
+col2.metric("Работающие кол-во", str(sum(df['customers_cnt_job'].values)) + " чел.", str(sum(df['customers_dlt_job'].values)) + " чел.")
+col3.metric("Дневное кол-во", str(sum(df['customers_cnt_day'].values)) + " чел.", str(sum(df['customers_dlt_day'].values)) + " чел.")
 
 
 
