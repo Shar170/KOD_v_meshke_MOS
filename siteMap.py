@@ -53,12 +53,12 @@ def load_names():
 @st.cache
 def load_loc_info():
     #считываем информацию о плотности проживающего, работающего и проходящего населения для каждого квадрата и прикручиваем туда координаты квадратов
-    c_locations = pd.read_csv("01_CLocation_July.csv")
-    c_locations = c_locations.merge(right=s_df, how='inner', left_on='zid', right_on='cell_zid')
-    c_locations.drop('cell_zid', axis=1, inplace=True)
-    c_locations['lat'] = c_locations['coords'].apply(lambda x: x[0][1]) # извлекаем широту
-    c_locations['lon'] = c_locations['coords'].apply(lambda x: x[0][0]) # извлекаем долготу
-    c_locations.drop('coords', axis=1, inplace=True)
+    c_locations = pd.read_csv("june_full_data.csv")
+    # c_locations = c_locations.merge(right=s_df, how='inner', left_on='zid', right_on='cell_zid')
+    # c_locations.drop('cell_zid', axis=1, inplace=True)
+    # c_locations['lat'] = c_locations['coords'].apply(lambda x: x[0][1]) # извлекаем широту
+    # c_locations['lon'] = c_locations['coords'].apply(lambda x: x[0][0]) # извлекаем долготу
+    # c_locations.drop('coords', axis=1, inplace=True)
     return c_locations
 @st.cache
 def get_unic_names():
@@ -82,7 +82,7 @@ filter_value = st.sidebar.slider('Выберите промежуток', value=
 
 df = c_locations.loc[c_locations['zid'].isin(loc_names.loc[loc_names['adm_name'] == adm_zone]['cell_zid'])]
 
-st.write(f'''Вы выбрали район "{adm_zone}" сейчас население в нём: {sum(df["customers_cnt_home"].values)}чел. на { c_locations.shape[0]*0.25} км²
+st.write(f'''Вы выбрали район "{adm_zone}" сейчас население в нём: {sum(df["customers_cnt_home"].values)}чел. на { df.shape[0]*0.25} км²
             Вы выбрали фильтрацию по учреждению типа: "{build_type}" с ожидаемым потоком людей в пределах между {filter_value}
             с учётом того что это будет {filter_type.lower()}.
 ''')
@@ -94,11 +94,12 @@ st.pydeck_chart(pdk.Deck(
     layers=[
         pdk.Layer("ColumnLayer",
     data=df,
+    
     get_position='[lon,lat]',
-    get_elevation="customers_cnt_home",
-    elevation_scale=max(c_locations['customers_cnt_home'].values)/max(df['customers_cnt_home'].values),
+    get_elevation="mfc_chance",
+    elevation_scale=100,#max(c_locations['customers_cnt_home'].values)/max(df['customers_cnt_home'].values),
     radius=250,
-    get_fill_color=["customers_cnt_job", "customers_cnt_day", "customers_cnt_move", 100],
+    get_fill_color=["255-mfc_chance * 21","mfc_chance*21",1, 200],
     pickable=True,
     auto_highlight=True,
     
