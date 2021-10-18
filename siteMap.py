@@ -72,6 +72,7 @@ def get_unic_names():
 def load_mfc_info():
     #считываем информацию о плотности проживающего, работающего и проходящего населения для каждого квадрата и прикручиваем туда координаты квадратов
     mfc = pd.read_csv("mos_coords.csv")
+    mfc['District'] = mfc['District'].apply(lambda x: x.replace('район', '').lstrip())
     return mfc
 
 #инициализируем и подгружаем все датасеты
@@ -169,7 +170,7 @@ layers=[
 
 if show_mfc:
     layers.append(pdk.Layer("ColumnLayer", #слой для отображения уже существующих МФЦ
-        data=mfc_info_df if print_all_btn else mfc_info_df.loc['район '+adm_zone.lower() == mfc_info_df['District'].str.lower() ],
+        data=mfc_info_df if print_all_btn else mfc_info_df.loc[adm_zone.lower() == mfc_info_df['District'].str.lower() ],
         get_position='[lat,lon]',
         elevation=100,#"WindowCount",
         elevation_scale=1,
