@@ -16,6 +16,7 @@ st.set_page_config(
 )
 
 
+
 #функция чтения shape файла с размерами и координатами сетки райнов
 def read_shapefile(sf_shape):
     """
@@ -140,10 +141,13 @@ st.write(f'🔵 Синие области - существующие на тек
 
 #Вы выбрали фильтрацию по учреждению типа: "{build_type}" с коэффициентом влияния равным {filter_value} с учётом того что это будет {filter_type.lower()}.
 #Собираем шаблон подсказки для столбцов(ячеек) карты
-if filter_key != 'logistic':
-    tooltip_template = "<b>" + filter_type + " :</b> {customers_cnt_"+filter_key+"} <br/><b>Необходисоть постройки "+build_type+" :</b> <br/>{mfc_score} <br/> Район: {District}"
-else:
-    tooltip_template = "<b>" + filter_type + " :</b> {logistic} <br/><b>Необходисоть постройки :</b> {mfc_score} <br/>"
+
+tooltip_template = '{metaInfo}'
+
+# if filter_key != 'logistic':
+#     tooltip_template = "<b>" + filter_type + " :</b> {customers_cnt_"+filter_key+"} <br/><b>Необходисоть постройки "+build_type+" :</b> <br/>{mfc_score} <br/> Район: {District}"
+# else:
+#     tooltip_template = "<b>" + filter_type + " :</b> {logistic} <br/><b>Необходисоть постройки :</b> {metainfo} <br/>"
 
 layers=[
         pdk.Layer("ColumnLayer", #слой для отображения колонок вероятности постройки учреждения
@@ -152,7 +156,7 @@ layers=[
         get_elevation="mfc_chance",
         elevation_scale=100,
         radius=250,
-        get_fill_color=["mfc_chance * 21","255-mfc_chance*21",1, 100],
+        get_fill_color=["mfc_chance * 21 - 15","255-mfc_chance*21",20, 255],
         pickable=True,
         auto_highlight=True,
         ),
@@ -200,7 +204,8 @@ success_box = None
 def handle_on_click(widget_instance, payload):
     global success_box
     try:
-        success_box.body = f'Вы выбрали ячейку {payload}!'
+        st.sidebar.write( f'Вы выбрали ячейку {payload}!')
+
         coords = payload['data']['coordinate']
     except Exception as e:
         success_box.body = 'Error: %s' % e
@@ -216,7 +221,7 @@ map_widget = st.pydeck_chart(world_map)
 #аналитика
 
 col1, col2, col3 = st.columns(3)
-col1.metric("Проживающие кол-во", str(sum(df['customers_cnt_home'].values)+sum(df['customers_cnt_move'].values)) + " чел.", str(sum(df['customers_dlt_home'].values)+sum(df['customers_dlt_move'].values)) + " чел.")
+col1.metric("Проживающие кол-во", str(sum(df['customers_cnt_home'].values) + sum(df['customers_cnt_move'].values)) + " чел.", str(sum(df['customers_dlt_home'].values)+sum(df['customers_dlt_move'].values)) + " чел.")
 col2.metric("Работающие кол-во", str(sum(df['customers_cnt_job'].values)) + " чел.", str(sum(df['customers_dlt_job'].values)) + " чел.")
 col3.metric("Дневное кол-во", str(sum(df['customers_cnt_day'].values)) + " чел.", str(sum(df['customers_dlt_day'].values)) + " чел.")
 
