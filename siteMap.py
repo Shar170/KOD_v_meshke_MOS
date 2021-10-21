@@ -34,6 +34,9 @@ def read_shapefile(sf_shape):
 
 @st.cache
 def load_shp():
+    """
+    Функция загрузки shape файла о разбиении на ячейки
+    """
     #загружаем информацию о сеточном рабиении МО в память
     myshp = open("fishnet2021.shp", "rb")
     mydbf = open("fishnet2021.dbf", "rb")
@@ -45,6 +48,9 @@ s_df = load_shp()
 
 @st.cache
 def load_h_w():
+    """
+    Функция загрузки логистической информации о переходах Дом-Работа 
+    """
     #считываем информацию о переходах Дом-Работа и прикручиваем туда координаты переходов
     h_w_matrix = pd.read_csv("04_CMatrix_Home_Work_July.csv")
     h_w_matrix = h_w_matrix.merge(right=s_df, how='inner', left_on='home_zid', right_on='cell_zid')
@@ -56,14 +62,19 @@ def load_h_w():
 
 #@st.cache
 def load_names():
-    #считываем наименование всех регинов и прикручиваем к ним их координаты
+    """ 
+    Функция для считывания наименований всех регинов и их координат
+    """
     loc_names = pd.read_csv('rebuilded_names.csv')
     return loc_names.merge(right=s_df, how='inner', left_on='cell_zid', right_on='cell_zid')
 
 #@st.cache
 def load_loc_info():
-    #считываем информацию о плотности проживающего, работающего и проходящего населения для каждого квадрата и прикручиваем туда координаты квадратов
+    """
+    Функция для считывания информации о плотности проживающего, работающего и проходящего населения для каждого квадрата
+    """
     c_locations = pd.read_csv("june_full_data.csv")
+    c_locations['mfc_chance'] = c_locations['mfc_chance'].apply(lambda m: '⭐'*int(m))
     return c_locations
 @st.cache
 def get_unic_names():
@@ -71,19 +82,20 @@ def get_unic_names():
 
 
 def load_mfc_info():
-    #считываем информацию о плотности проживающего, работающего и проходящего населения для каждого квадрата и прикручиваем туда координаты квадратов
+    """
+    Функция считывания информации о построенных МФЦ
+    """
     mfc = pd.read_csv("mos_coords.csv")
     mfc['District'] = mfc['District'].apply(lambda x: x.replace('район', '').strip())
+    
     return mfc
 
 #инициализируем и подгружаем все датасеты
 loc_names = load_names()
 c_locations = load_loc_info()
-#h_w_matrix = load_h_w()
 adm_names = get_unic_names()
 mfc_info_df = load_mfc_info()
 
-#st.dataframe(mfc_info_df.head())
 
 st.title('Проект команды "KOD в мешке"')
 
@@ -144,11 +156,6 @@ st.write(f'🔵 Синие области - существующие на тек
 
 tooltip_template = '{metaInfo}'
 
-# if filter_key != 'logistic':
-#     tooltip_template = "<b>" + filter_type + " :</b> {customers_cnt_"+filter_key+"} <br/><b>Необходисоть постройки "+build_type+" :</b> <br/>{mfc_score} <br/> Район: {District}"
-# else:
-#     tooltip_template = "<b>" + filter_type + " :</b> {logistic} <br/><b>Необходисоть постройки :</b> {metainfo} <br/>"
-
 layers=[
         pdk.Layer("ColumnLayer", #слой для отображения колонок вероятности постройки учреждения
         data=df,
@@ -174,7 +181,7 @@ layers=[
 
 if show_mfc:
     layers.append(pdk.Layer("ColumnLayer", #слой для отображения уже существующих МФЦ
-        data=mfc_info_df if print_all_btn else mfc_info_df.loc[adm_zone.lower() == mfc_info_df['District'].str.lower() ],
+        data=mfc_info_df if print_all_btn else mfc_info_df.loc[mfc_info_df['global_id'].isin(df['nearest_mfc_id'])],
         get_position='[lat,lon]',
         elevation=100,#"WindowCount",
         elevation_scale=1,
