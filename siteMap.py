@@ -13,11 +13,8 @@ st.set_page_config(
     menu_items={
         'About': "Проект КОД в мешке. *Рекомендательная система* для поиска наиболее оптимального построения раличных соц. учреждений! Наш GitHub: https://github.com/Shar170/KOD_v_meshke_MOS"
     }
-)
+    )
 
-
-
-#функция чтения shape файла с размерами и координатами сетки райнов
 def read_shapefile(sf_shape):
     """
     Read a shapefile into a Pandas dataframe with a 'coords' 
@@ -45,7 +42,6 @@ def load_shp():
     #в поле coords первая координата центр квадрата, остальные его углы
 s_df = load_shp()
 
-
 @st.cache
 def load_h_w():
     """
@@ -59,8 +55,6 @@ def load_h_w():
     h_w_matrix.drop('cell_zid_y', axis=1, inplace=True)
     return h_w_matrix
 
-
-#@st.cache
 def load_names():
     """ 
     Функция для считывания наименований всех регинов и их координат
@@ -68,18 +62,18 @@ def load_names():
     loc_names = pd.read_csv('rebuilded_names.csv')
     return loc_names.merge(right=s_df, how='inner', left_on='cell_zid', right_on='cell_zid')
 
-#@st.cache
 def load_loc_info():
     """
     Функция для считывания информации о плотности проживающего, работающего и проходящего населения для каждого квадрата
     """
     c_locations = pd.read_csv("june_full_data.csv")
-    c_locations['mfc_chance'] = c_locations['mfc_chance'].apply(lambda m: '⭐'*int(m))
+    
+    # c_locations['mfc_chance'] = c_locations['mfc_chance'].apply(lambda m: '⭐'*int(m))
     return c_locations
+
 @st.cache
 def get_unic_names():
     return  pd.read_csv('rebuilded_names.csv')['adm_name'].drop_duplicates(inplace=False).values
-
 
 def load_mfc_info():
     """
@@ -87,7 +81,10 @@ def load_mfc_info():
     """
     mfc = pd.read_csv("mos_coords.csv")
     mfc['District'] = mfc['District'].apply(lambda x: x.replace('район', '').strip())
-    
+    mfc['metaInfo'] = "Краткое название: " + mfc['ShortName'] + \
+                    "<br/>Адрес учреждения: " + mfc['Address'] + \
+                    "<br/>Текущая загруженность: " + mfc['people_flow_rate'].apply(str) + \
+                    "<br/>Максимально возможная загруженность: " + mfc['max_people_flow'].apply(str)
     return mfc
 
 #инициализируем и подгружаем все датасеты
@@ -95,43 +92,22 @@ loc_names = load_names()
 c_locations = load_loc_info()
 adm_names = get_unic_names()
 mfc_info_df = load_mfc_info()
-
-
-st.title('Проект команды "KOD в мешке"')
-
 b_types_array = ['МФЦ','Школа','Торговый центр']
 
+
+
+#создаём селект боксы и заголовки страницы
+st.title('Проект команды "KOD в мешке"')
 adm_zone = st.sidebar.selectbox('Выберите административную зону',adm_names, )
 print_all_btn = st.sidebar.checkbox('Вывести для всех регионов', value=False)
 build_type = st.sidebar.selectbox('Выберите тип учреждения',b_types_array)
 show_mfc = st.sidebar.checkbox('Показать учреждения на карте', value=False)
-filter_dict = {'Кол-во живущих':'home','Кол-во работающих':'job','Кол-во проходящях':'move','Логистика':'logistic'}
-filter_type = st.sidebar.selectbox('Выберите оценочный фактор',filter_dict)
-filter_value = st.sidebar.slider('Выберите степень влияния фактора', value=1.0, min_value=0.0, max_value=5.0, step=0.05)
-#press_button = st.sidebar.button("Do magic!")
+models_dict = {'Агрегационная модель':'mfc_chance_agreg','Балансовая модель':'mfc_chance_balance'}
+model_type = st.sidebar.selectbox('Выберите модель расчётов',models_dict)
 st.sidebar.image('whiteCat.png', width=100)
 
-filter_key = filter_dict[filter_type]
 
-c_locations['mfc_chance'] = 0
-
-#Настройки влияния весов на параметры плотности людей
-alphas = {'home':1.0,'job':1.0,'day':1.0, 'move':1.0}
-alphas_dlt = {'home':0.5,'job':0.5,'day':0.5, 'move':0.5}
-
-#Расчитываем оценку необходимости постройки учреждения
-for feature in ['home', 'job', 'day', 'move']:#обрабатываем счётчики плотности за текущий месяц
-    c_locations['mfc_chance'] = c_locations['mfc_chance'] + (filter_value if filter_key == feature else (1.0)) * alphas[feature] * c_locations[f'customers_cnt_{feature}']
-for feature in ['home', 'job', 'day', 'move']:#обрабатываем дельты измения плотностей
-    c_locations['mfc_chance'] = c_locations['mfc_chance'] + (filter_value if filter_key == feature else  (1.0)) * alphas_dlt[feature] *  c_locations[f'customers_dlt_{feature}']  
-
-#инкрементация шанса за счёт большой удалённости от других учреждений
-c_locations['mfc_chance'] = c_locations['mfc_chance'] + (c_locations['nearest_mfc'])
-#инкрементация шанс за счёт высокой логичтики внутри ячейки
-c_locations['mfc_chance'] = c_locations['mfc_chance'] + (filter_value if filter_key == 'logistic' else  (1.0)) * (c_locations['logistic'])
-#нормирование шанса 
-c_locations['mfc_chance'] = c_locations['mfc_chance'].apply(lambda x: 1 + 10* x / 42070.344117)
-c_locations['mfc_score'] = c_locations['mfc_chance'].apply(lambda x: '⭐'*int(x))
+model_key = models_dict[model_type]
 
 #извлекаем ячейки выбранного в меню района Москвы
 if print_all_btn:
@@ -139,9 +115,8 @@ if print_all_btn:
 else:
     df = c_locations.loc[c_locations['zid'].isin(loc_names.loc[loc_names['adm_name'] == adm_zone]['cell_zid'])]
 
-#Выводим описание выьранного региона (население, площадь) и информацию 
+#Выводим описание выбранного региона (население, площадь) и информацию 
 
-#T_col1, T_col2 = st.columns(2)
 if print_all_btn:
     st.write(f'''Вы выбрали всю Москву сейчас население в ней: {sum(df["customers_cnt_home"].values) + sum(df["customers_cnt_move"].values)} чел. на { df.shape[0]*0.25} км²''')
 else:
@@ -151,32 +126,18 @@ st.write(f'🔴 Красные области - места с высокой п�
 st.write(f'🟢 Зелёнык области - места с низкой потребностью в учреждениях типа "{build_type}"')
 st.write(f'🔵 Синие области - существующие на текущий момент учреждения типа "{build_type}"')
 
-#Вы выбрали фильтрацию по учреждению типа: "{build_type}" с коэффициентом влияния равным {filter_value} с учётом того что это будет {filter_type.lower()}.
 #Собираем шаблон подсказки для столбцов(ячеек) карты
-
 tooltip_template = '{metaInfo}'
-
 layers=[
         pdk.Layer("ColumnLayer", #слой для отображения колонок вероятности постройки учреждения
         data=df,
         get_position='[lon,lat]',
-        get_elevation="mfc_chance",
-        elevation_scale=100,
+        get_elevation=model_key,
+        elevation_scale=200,
         radius=250,
-        get_fill_color=["mfc_chance * 21 - 15","255-mfc_chance*21",20, 255],
+        get_fill_color=[f"{model_key} * 42 - 15",f"255-{model_key}*42",20, 255],
         pickable=True,
         auto_highlight=True,
-        ),
-        pdk.Layer(
-            "TextLayer",
-            data=mfc_info_df,
-            get_position='[lon,lat]',
-            #get_text="mfc_chance",
-            text='МФЦ',
-            #elevation_scale=100,
-            #radius=250,
-            pickable=False,
-            auto_highlight=True,
         )]
 
 if show_mfc:
@@ -192,9 +153,7 @@ if show_mfc:
         ))
 
 
-
-
-#Определяем графики на карте для районов и известных учреждений
+#Инициализируем карту районов и известных учреждений
 world_map = pdk.Deck(
     map_style='mapbox://styles/mapbox/light-v9',
     initial_view_state=pdk.ViewState(latitude=df['lat'].values[0],longitude=df['lon'].values[0],zoom=11,pitch=50,),
@@ -204,19 +163,6 @@ world_map = pdk.Deck(
     },
     layers=layers,
 )
-
-
-
-success_box = None
-def handle_on_click(widget_instance, payload):
-    global success_box
-    try:
-        st.sidebar.write( f'Вы выбрали ячейку {payload}!')
-
-        coords = payload['data']['coordinate']
-    except Exception as e:
-        success_box.body = 'Error: %s' % e
-world_map.deck_widget.on_click(handle_on_click)
 
 map_widget = st.pydeck_chart(world_map)
 
@@ -234,8 +180,8 @@ col3.metric("Дневное кол-во", str(sum(df['customers_cnt_day'].values
 
 
 
-#st.write('Табличное представление загруженных данных')
-#st.dataframe(c_locations)
+st.write('Табличное представление загруженных данных')
+st.dataframe(c_locations)
 #st.dataframe(loc_names)
 #st.dataframe(s_df)
 #st.dataframe(h_w_matrix)
