@@ -109,6 +109,8 @@ st.sidebar.image('whiteCat.png', width=100)
 
 model_key = models_dict[model_type]
 
+
+
 #извлекаем ячейки выбранного в меню района Москвы
 if print_all_btn:
     df = c_locations.copy()#.loc[c_locations['zid'].isin(loc_names.loc[loc_names['adm_name'] == adm_zone]['cell_zid'])]
@@ -127,18 +129,22 @@ st.write(f'🟢 Зелёнык области - места с низкой по�
 st.write(f'🔵 Синие области - существующие на текущий момент учреждения типа "{build_type}"')
 
 #Собираем шаблон подсказки для столбцов(ячеек) карты
+df['metaInfo'] = "Насление: " + df[['customers_cnt_home', 'customers_cnt_move']].sum(axis=1).apply(str) +\
+                            "<br/><b>Прирост:</b> " + df[['customers_cnt_home', 'customers_cnt_move']].sum(axis=1).apply(str) + \
+                            "<br/><b>Логистика:</b> " + df['logistic'].apply(str) + \
+                            "<br/><b>Необходимость постройки учреждения:</b> <br/>" + df[model_key].apply(lambda m: '⭐'*int(m))
 tooltip_template = '{metaInfo}'
 layers=[
-        pdk.Layer("ColumnLayer", #слой для отображения колонок вероятности постройки учреждения
-        data=df,
-        get_position='[lon,lat]',
-        get_elevation=model_key,
-        elevation_scale=200,
-        radius=250,
-        get_fill_color=[f"{model_key} * 42 - 15",f"255-{model_key}*42",20, 255],
-        pickable=True,
-        auto_highlight=True,
-        )]
+    pdk.Layer("ColumnLayer", #слой для отображения колонок вероятности постройки учреждения
+    data=df,
+    get_position='[lon,lat]',
+    get_elevation=model_key,
+    elevation_scale=200,
+    radius=250,
+    get_fill_color=[f"{model_key} * 42 - 15",f"255-{model_key}*42",20, 255],
+    pickable=True,
+    auto_highlight=True,
+    )]
 
 if show_mfc:
     layers.append(pdk.Layer("ColumnLayer", #слой для отображения уже существующих МФЦ
@@ -166,22 +172,9 @@ world_map = pdk.Deck(
 
 map_widget = st.pydeck_chart(world_map)
 
-
-
-
-
-
 #аналитика
 
 col1, col2, col3 = st.columns(3)
 col1.metric("Проживающие кол-во", str(sum(df['customers_cnt_home'].values) + sum(df['customers_cnt_move'].values)) + " чел.", str(sum(df['customers_dlt_home'].values)+sum(df['customers_dlt_move'].values)) + " чел.")
 col2.metric("Работающие кол-во", str(sum(df['customers_cnt_job'].values)) + " чел.", str(sum(df['customers_dlt_job'].values)) + " чел.")
 col3.metric("Дневное кол-во", str(sum(df['customers_cnt_day'].values)) + " чел.", str(sum(df['customers_dlt_day'].values)) + " чел.")
-
-
-
-st.write('Табличное представление загруженных данных')
-st.dataframe(c_locations)
-#st.dataframe(loc_names)
-#st.dataframe(s_df)
-#st.dataframe(h_w_matrix)
