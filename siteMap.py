@@ -164,7 +164,7 @@ elif active_tab == tabs[1]: #строительный блок
     windows_count = st.sidebar.text_input("Количество окон", value=20)
     model_type = st.sidebar.selectbox('Выберите модель расчётов',models_dict)
     st.sidebar.write(models_descr[model_type])
-    id_cell = st.sidebar.text_input("ID ячейки строиткльства", value=95664)
+    id_cell = st.sidebar.text_input("ID ячейки строительства", value=95664)
 
     is_run_build = st.sidebar.button("Построить!")
 else:
@@ -188,7 +188,7 @@ else:
     st.write(f'''Вы выбрали район "{adm_zone}" сейчас население в нём: {sum(df["customers_cnt_home"].values) + sum(df["customers_cnt_move"].values)} чел. на { df.shape[0]*0.25} км²''')
 
 st.write(f'🔴 Красные области - места с высокой потребностью в учреждениях типа "{build_type}"')
-st.write(f'🟢 Зелёнык области - места с низкой потребностью в учреждениях типа "{build_type}"')
+st.write(f'🟢 Зелёные области - места с низкой потребностью в учреждениях типа "{build_type}"')
 st.write(f'🔵 Синие области - существующие на текущий момент учреждения типа "{build_type}"')
 
 #Собираем шаблон подсказки для столбцов(ячеек) карты
@@ -217,9 +217,6 @@ if is_run_build:
                             "District":"",
                             "metaInfo":"",}
     
-
-    st.dataframe(df.head())
-
     stqdm.pandas(desc = "Процесс повторного поиска учреждений")
     df['nearest_mfc_id'] = 0
     df['nearest_mfc_id'] = df['zid'].progress_apply(
@@ -282,8 +279,8 @@ if is_run_build:
         #Расчёт необходимости исходя из текущей загруженности
         df[model_type] = df['nearest_mfc_id'].progress_apply(lambda x: coeff_flow(mfc_df.loc[mfc_df['global_id'] == x]['people_flow_rate'].values[0] / mfc_df.loc[mfc_df['global_id'] == x]['max_people_flow'].values[0]) )
         #Расчёт необходимости исходя из будущей загруженности
-        mfc_df['future_people_flow_rate'] = mfc_df['global_id'].progress_apply(lambda x: df.loc[df['nearest_mfc_id'] == x][summ_columns].values.sum())
         summ_columns = ['customers_cnt_home','customers_cnt_job','customers_cnt_day'] #поля по которым будет осуществляться сумма плотности людей
+        mfc_df['future_people_flow_rate'] = mfc_df['global_id'].progress_apply(lambda x: df.loc[df['nearest_mfc_id'] == x][summ_columns].values.sum())
         df[model_type] = df[model_type] + 0.5 *   df['nearest_mfc_id'].progress_apply(lambda x: coeff_flow(mfc_df.loc[mfc_df['global_id'] == x]['future_people_flow_rate'].values[0] / mfc_df.loc[mfc_df['global_id'] == x]['max_people_flow'].values[0]) )
         #Расчёт необходимости исходя из удалённости 
         df[model_type] = df[model_type] +  df['nearest_mfc_distance'].progress_apply(lambda x: coeff_distance(x / 1000.0) )
