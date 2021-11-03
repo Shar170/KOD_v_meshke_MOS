@@ -176,7 +176,7 @@ else:
 
 model_key = models_dict[model_type]
 st.sidebar.image('whiteCat.png', width=100)
-
+c_locations['adm_name'] = c_locations['zid'].apply(lambda x: loc_names.loc[x == loc_names['cell_zid']]['adm_name'].values[0])
 #извлекаем ячейки выбранного в меню района Москвы
 if print_all_btn:
     df = c_locations.copy()#.loc[c_locations['zid'].isin(loc_names.loc[loc_names['adm_name'] == adm_zone]['cell_zid'])]
@@ -213,31 +213,66 @@ with st.spinner('Идёт просчёт, это займёт около 5 ми�
         id_cell = int(id_cell)
         neighbour_distance = 10 #km
         
-        mfc_df['neighbour_mfc'] = mfc_df['global_id'].apply(lambda x: 
-                                                                mfc_df.loc[mfc_df['geodata_center'].apply(lambda y: geopy.distance.distance(y,mfc_df.loc[mfc_df['global_id']==x]['geodata_center']).km <= neighbour_distance)]['global_id'].values)
-        mfc_df.loc[df.index.max()+1] = {"global_id":-1,       
-                                "Address":address,          
-                                "ShortName":f'{build_type} "Предварительный"',        
-                                "WindowCount": int(windows_count),      
-                                "geodata_center":[float(df.loc[df['zid'] == id_cell]['lat'].values[0]),float(df.loc[df['zid'] == id_cell]['lon'].values[0])],
-                                "lon":df.loc[df['zid'] == id_cell]['lat'].values[0],             
-                                "lat":df.loc[df['zid'] == id_cell]['lon'].values[0],            
-                                "District":"",
-                                "metaInfo":"",
-                                "neighbour_mfc":mfc_df.loc[mfc_df['global_id'] == df.loc[df['zid']==id_cell]['nearest_mfc_id'].values[0]]['neighbour_mfc'].values[0],}
-        stqdm.pandas()
+        print("Средняя необходимость по москве:", df[model_key].mean())
+        import re
+        mfc_df['geodata_center'] = mfc_df['geodata_center'].apply(lambda x: [float(coord) for coord in re.findall(r'[0-9]+\.[0-9]+', str(x))] )
 
+
+        mfc_df['neighbour_mfc'] = mfc_df['global_id'].apply(lambda mfc_id: 
+                                                                mfc_df.loc[mfc_df['geodata_center'].apply(
+                                                                    lambda mfc_center: 
+                                                                    geopy.distance.distance(
+                                                                        mfc_center,
+                                                                        mfc_df.loc[mfc_df['global_id']==mfc_id]['geodata_center']).km <= neighbour_distance)
+                                                                ]['global_id'].values)
+
+        array = mfc_df.loc[mfc_df['global_id'] == df.loc[df['zid']==id_cell]['nearest_mfc_id'].values[0]]['neighbour_mfc'].values[0]
+        array = array.tolist()
+
+        array.extend([-1])
+        print("до ",mfc_df.shape)
+        mfc_df.loc[len(mfc_df)] = {"global_id":-1,       
+                        "Address":"address",          
+                        "ShortName":f'build_type "Предварительный"',        
+                        "WindowCount": int(40),      
+                        "geodata_center":[float(df.loc[df['zid'] == id_cell]['lat'].values[0]),
+                                          float(df.loc[df['zid'] == id_cell]['lon'].values[0])],
+                        "lon":df.loc[df['zid'] == id_cell]['lat'].values[0],             
+                        "lat":df.loc[df['zid'] == id_cell]['lon'].values[0],            
+                        "District":"",
+                        "metaInfo":"",
+                        "neighbour_mfc":array,}
+
+        #stqdm.pandas(desc = "Процесс повторного поиска учреждений")
 
         message.info("Процесс повторного поиска учреждений")
+        target_cells = []
+        for x in df['zid']:
+            if df.loc[df['zid']==x]['nearest_mfc_id'].values[0] in mfc_df.loc[mfc_df['global_id'] == -1]['neighbour_mfc'].values[0]:
+                target_cells.append(x)
+        st.write(f'необходимо просчитать {len(target_cells)} ячеек')
 
-        #df['nearest_mfc_id'] = 0
         df['nearest_mfc_id'] = df['zid'].apply(
         lambda x: mfc_df.loc[mfc_df['geodata_center'].apply(
             lambda y: geopy.distance.distance((y[0],y[1]),
                             (float(df.loc[df['zid']==x]['lat'].values[0]),
                             float(df.loc[df['zid']==x]['lon'].values[0]))
                                         ).m
-            ).idxmin()]['global_id'] if df.loc[df['zid']==x]['nearest_mfc_id'].values[0] in mfc_df.loc[mfc_df['global_id'] == -1]['neighbour_mfc'].values[0] else df.loc[df['zid']==x]['nearest_mfc_id'].values[0])
+            ).idxmin()]['global_id'] if x in target_cells else df.loc[df['zid']==x]['nearest_mfc_id'].values[0])
+
+        #stqdm.pandas(desc = "Рачёт дистанций до учреждений")
+        message.info("Рачёт дистанций до учреждений")
+        df['nearest_mfc_distance'] = -1
+        df['nearest_mfc_distance'] = df['zid'].apply(
+        lambda x: geopy.distance.distance(mfc_df.loc[mfc_df['global_id'] == df.loc[df['zid']==x]['nearest_mfc_id'].values[0]]['geodata_center'], 
+                                        (df.loc[df['zid']==x]['lat'].values[0], df.loc[df['zid']==x]['lon'].values[0])).m)
+
+        people_to_one_window = 3000
+        summ_columns = ['customers_cnt_home','customers_cnt_job','customers_cnt_day'] #поля по которым будет осуществляться сумма плотности людей
+        mfc_df['people_flow_rate'] = mfc_df['global_id'].apply(lambda x: df.loc[df['nearest_mfc_id'] == x][summ_columns].values.sum())
+        mfc_df['max_people_flow'] = mfc_df['WindowCount'] * people_to_one_window 
+        mfc_df['future_people_flow_rate'] = mfc_df['global_id'].apply(lambda x: df.loc[df['nearest_mfc_id'] == x][summ_columns].values.sum())
+
 
         message.info("Рачёт дистанций до учреждений")
         df['nearest_mfc_distance'] = -1
@@ -255,8 +290,8 @@ with st.spinner('Идёт просчёт, это займёт около 5 ми�
 
 
         message.info("Процесс повторной прогонки модели")
-        if model_type == 'mfc_chance_agreg':
-            df[model_type] = 0
+        if model_key == 'mfc_chance_agreg':
+            df[model_key] = 0
 
             #Настройка влияния весов на параметры плотности людей
             alphas = {'home':1.0,'job':1.0,'day':1.0, 'move':1.0}
@@ -265,15 +300,15 @@ with st.spinner('Идёт просчёт, это займёт около 5 ми�
             stqdm.pandas(desc="Перерасчёт точесной модели оптимизации")
 
             for feature in ['home', 'job', 'day', 'move']:
-                df[model_type] = df[model_type] + alphas[feature] * df[f'customers_cnt_{feature}']
+                df[model_key] = df[model_key] + alphas[feature] * df[f'customers_cnt_{feature}']
             for feature in ['home', 'job', 'day', 'move']:
-                df[model_type] = df[model_type] + alphas_dlt[feature] *  df[f'customers_dlt_{feature}']  
+                df[model_key] = df[model_key] + alphas_dlt[feature] *  df[f'customers_dlt_{feature}']  
                 
-            df[model_type] = df[model_type] + (df['nearest_mfc_distance'])# / 43617.48364582916)*1000
-            df[model_type] = df[model_type] + (df['logistic'])
+            df[model_key] = df[model_key] + (df['nearest_mfc_distance'])# / 43617.48364582916)*1000
+            df[model_key] = df[model_key] + (df['logistic'])
 
-            df[model_type] = df[model_type].apply(lambda x: 1 + 5* x / 42070.344117)
-        else :
+            df[model_key] = df[model_key].apply(lambda x: 1 + 5* x / 42070.344117)
+        elif model_key == 'mfc_chance_balance':
             
             def coeff_flow(percent):
                 input_arr = [0.75,0.95,1.1,1.5,5]
@@ -293,11 +328,14 @@ with st.spinner('Идёт просчёт, это займёт около 5 ми�
             #Расчёт необходимости исходя из текущей загруженности
             df[model_type] = df['nearest_mfc_id'].apply(lambda x: coeff_flow(mfc_df.loc[mfc_df['global_id'] == x]['people_flow_rate'].values[0] / mfc_df.loc[mfc_df['global_id'] == x]['max_people_flow'].values[0]) )
             #Расчёт необходимости исходя из будущей загруженности
-            df[model_type] = df[model_type] + 0.5 *   df['nearest_mfc_id'].apply(lambda x: coeff_flow(mfc_df.loc[mfc_df['global_id'] == x]['future_people_flow_rate'].values[0] / mfc_df.loc[mfc_df['global_id'] == x]['max_people_flow'].values[0]) )
+            df[model_type] = df[model_type] + 0.5 * df['nearest_mfc_id'].apply(lambda x: coeff_flow(mfc_df.loc[mfc_df['global_id'] == x]['future_people_flow_rate'].values[0] / mfc_df.loc[mfc_df['global_id'] == x]['max_people_flow'].values[0]) )
             #Расчёт необходимости исходя из удалённости 
             df[model_type] = df[model_type] +  df['nearest_mfc_distance'].apply(lambda x: coeff_distance(x / 1000.0) )
             #Расчёт необходимости исходя из логистики
             df[model_type] = df[model_type] +  (df['nearest_mfc_id'].apply(lambda x: coeff_logistic(df.loc[df['nearest_mfc_id'] == x]['logistic'].mean())) /  df['logistic']).apply(lambda x: coeff_logistic(x)) #
+        else:
+            st.error("Просчёт модели невозможет, ключ модели неверен!")
+
 message.empty()
 mfc_df['metaInfo'] = "Краткое название: " + mfc_df['ShortName'] + \
                     "<br/>Адрес учреждения: " + mfc_df['Address'] + \
@@ -309,7 +347,10 @@ df['metaInfo'] = "Насление: " + df[['customers_cnt_home', 'customers_cnt
             "<br/><b>Прирост:</b> " + df[['customers_dlt_home', 'customers_dlt_move']].sum(axis=1).apply(str) + \
             "<br/><b>Логистика:</b> " + df['logistic'].apply(str) + \
             "<br/><b>Необходимость постройки учреждения:</b> <br/>" + df[model_key].apply(lambda m: '🔴'*int(m)) + df[model_key].apply(lambda m: '⭕'*(5-int(m))) + \
-            "<br/><b>ID ячейки:</b> " + df['zid'].apply(str)
+            "<br/><b>ID ячейки:</b> " + df['zid'].apply(str) + \
+            "<br/><b>Район:</b> " + df['adm_name'].apply(str) +\
+            "<br/><b>МФЦ:</b> " + df['nearest_mfc_id'].apply(str)
+            
 
 tooltip_template = '{metaInfo}'
 if not hide_model:
