@@ -156,6 +156,7 @@ if active_tab == tabs[0]: #анализ блок
     show_mfc = st.sidebar.checkbox('Показать учреждения на карте', value=False)
     model_type = st.sidebar.selectbox('Выберите модель расчётов',models_dict)
     st.sidebar.write(models_descr[model_type])
+    hide_model = st.sidebar.checkbox('Скрыть отображение модели?', value=False)
 elif active_tab == tabs[1]: #строительный блок
     print_all_btn = True
     #adm_zone = st.sidebar.selectbox('Выберите административную зону',adm_names, )
@@ -203,7 +204,7 @@ mfc_df['geodata_center'] = mfc_df['geodata_center'].apply(lambda x: [float(coord
 
 map_widget = st.empty()
 
-
+st.dataframe(df)
 with st.spinner('Идёт просчёт, это займёт около 5 минут...') as spinner:
     message = st.empty()
     
@@ -310,18 +311,20 @@ df['metaInfo'] = "Насление: " + df[['customers_cnt_home', 'customers_cnt
             "<br/><b>ID ячейки:</b> " + df['zid'].apply(str)
 
 tooltip_template = '{metaInfo}'
-layers=[
-    pdk.Layer("ColumnLayer", #слой для отображения колонок вероятности постройки учреждения
-    data=df[['lon', 'lat', 'metaInfo', model_key]],
-    get_position='[lon,lat]',
-    get_elevation=model_key,
-    elevation_scale=200,
-    radius=250,
-    get_fill_color=[f"{model_key} * 42 - 15",f"255-{model_key}*42",20, 255],
-    pickable=True,
-    auto_highlight=True,
-    )]
-
+if not hide_model:
+    layers=[
+        pdk.Layer("ColumnLayer", #слой для отображения колонок вероятности постройки учреждения
+        data=df[['lon', 'lat', 'metaInfo', model_key]],
+        get_position='[lon,lat]',
+        get_elevation=model_key,
+        elevation_scale=200,
+        radius=250,
+        get_fill_color=[f"{model_key} * 42 - 15",f"255-{model_key}*42",20, 255],
+        pickable=True,
+        auto_highlight=True,
+        )]
+else:
+    layers=[]
 
 if show_mfc:
 
