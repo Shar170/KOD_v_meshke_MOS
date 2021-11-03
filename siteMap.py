@@ -205,7 +205,6 @@ mfc_df['geodata_center'] = mfc_df['geodata_center'].apply(lambda x: [float(coord
 
 map_widget = st.empty()
 
-st.dataframe(df)
 with st.spinner('Идёт просчёт, это займёт около 5 минут...') as spinner:
     message = st.empty()
     
@@ -213,7 +212,7 @@ with st.spinner('Идёт просчёт, это займёт около 5 ми�
         id_cell = int(id_cell)
         neighbour_distance = 10 #km
         
-        print("Средняя необходимость по москве:", df[model_key].mean())
+        #print("Средняя необходимость по москве:", df[model_key].mean())
         import re
         mfc_df['geodata_center'] = mfc_df['geodata_center'].apply(lambda x: [float(coord) for coord in re.findall(r'[0-9]+\.[0-9]+', str(x))] )
 
@@ -230,7 +229,7 @@ with st.spinner('Идёт просчёт, это займёт около 5 ми�
         array = array.tolist()
 
         array.extend([-1])
-        print("до ",mfc_df.shape)
+        #print("до ",mfc_df.shape)
         mfc_df.loc[len(mfc_df)] = {"global_id":-1,       
                         "Address":"address",          
                         "ShortName":f'build_type "Предварительный"',        
