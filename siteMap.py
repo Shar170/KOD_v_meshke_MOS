@@ -204,7 +204,8 @@ map_widget = st.empty()
 
 
 with st.spinner('Идёт просчёт, это займёт около 5 минут...') as spinner:
-
+    message = st.empty()
+    
     if is_run_build:
         id_cell = int(id_cell)
         mfc_df.loc[df.index.max()+1] = {"global_id":-1,       
@@ -222,7 +223,7 @@ with st.spinner('Идёт просчёт, это займёт около 5 ми�
         mfc_df['neighbour_mfc'] = mfc_df['global_id'].apply(lambda x: 
                                                                 mfc_df.loc[mfc_df['geodata_center'].apply(lambda y: geopy.distance.distance(y,mfc_df.loc[mfc_df['global_id']==x]['geodata_center']).km <= neighbour_distance)]['global_id'].values)
 
-        spinner.text = "Процесс повторного поиска учреждений"
+        message.info("Процесс повторного поиска учреждений")
 
         #df['nearest_mfc_id'] = 0
         df['nearest_mfc_id'] = df['zid'].apply(
@@ -233,14 +234,14 @@ with st.spinner('Идёт просчёт, это займёт около 5 ми�
                                         ).m
             ).idxmin()]['global_id'] if df.loc[df['zid']==x]['nearest_mfc_id'].values[0] in mfc_df.loc[mfc_df['global_id'] == -1]['neighbour_mfc'].values[0] else df.loc[df['zid']==x]['nearest_mfc_id'].values[0])
 
-        spinner.text =  "Рачёт дистанций до учреждений"
+        message.info("Рачёт дистанций до учреждений")
         df['nearest_mfc_distance'] = -1
         df['nearest_mfc_distance'] = df['zid'].apply(
         lambda x: geopy.distance.distance(mfc_df.loc[mfc_df['global_id'] == df.loc[df['zid']==x]['nearest_mfc_id'].values[0]]['geodata_center'], 
                                         (df.loc[df['zid']==x]['lat'].values[0], df.loc[df['zid']==x]['lon'].values[0])).m)
 
         people_to_one_window = 3000
-        mfc_df['people_flow_rate'] = mfc_df['global_id'].progress_apply(lambda x: df.loc[df['nearest_mfc_id'] == x][summ_columns].values.sum())
+        mfc_df['people_flow_rate'] = mfc_df['global_id'].apply(lambda x: df.loc[df['nearest_mfc_id'] == x][summ_columns].values.sum())
         mfc_df['max_people_flow'] = mfc_df['WindowCount'] * people_to_one_window 
         summ_columns = ['customers_cnt_home','customers_cnt_job','customers_cnt_day'] #поля по которым будет осуществляться сумма плотности людей
         mfc_df['future_people_flow_rate'] = mfc_df['global_id'].apply(lambda x: df.loc[df['nearest_mfc_id'] == x][summ_columns].values.sum())
@@ -248,7 +249,7 @@ with st.spinner('Идёт просчёт, это займёт около 5 ми�
         st.dataframe(mfc_df)
 
 
-        spinner.text =  "Процесс повторной прогонки модели"
+        message.info("Процесс повторной прогонки модели")
         if model_type == 'mfc_chance_agreg':
             df[model_type] = 0
 
@@ -292,7 +293,7 @@ with st.spinner('Идёт просчёт, это займёт около 5 ми�
             df[model_type] = df[model_type] +  df['nearest_mfc_distance'].apply(lambda x: coeff_distance(x / 1000.0) )
             #Расчёт необходимости исходя из логистики
             df[model_type] = df[model_type] +  (df['nearest_mfc_id'].apply(lambda x: coeff_logistic(df.loc[df['nearest_mfc_id'] == x]['logistic'].mean())) /  df['logistic']).apply(lambda x: coeff_logistic(x)) #
-
+message.empty()
 mfc_df['metaInfo'] = "Краткое название: " + mfc_df['ShortName'] + \
                     "<br/>Адрес учреждения: " + mfc_df['Address'] + \
                     "<br/>Загруженность текущая/максимальная: " + mfc_df['people_flow_rate'].apply(str) + "/" + mfc_df['max_people_flow'].apply(str) + \
