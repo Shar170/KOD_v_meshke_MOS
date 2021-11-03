@@ -166,6 +166,7 @@ elif active_tab == tabs[1]: #строительный блок
     windows_count = st.sidebar.text_input("Количество окон", value=20)
     model_type = st.sidebar.selectbox('Выберите модель расчётов',models_dict)
     st.sidebar.write(models_descr[model_type])
+    hide_model = st.sidebar.checkbox('Скрыть отображение модели?', value=False)
     id_cell = st.sidebar.text_input("ID ячейки строительства", value=42400)
 
     is_run_build = st.sidebar.button("Построить!")
