@@ -164,7 +164,7 @@ elif active_tab == tabs[1]: #строительный блок
     windows_count = st.sidebar.text_input("Количество окон", value=20)
     model_type = st.sidebar.selectbox('Выберите модель расчётов',models_dict)
     st.sidebar.write(models_descr[model_type])
-    id_cell = st.sidebar.text_input("ID ячейки строительства", value=95664)
+    id_cell = st.sidebar.text_input("ID ячейки строительства", value=42400)
 
     is_run_build = st.sidebar.button("Построить!")
 else:
@@ -192,10 +192,6 @@ st.write(f'🟢 Зелёные области - места с низкой по�
 st.write(f'🔵 Синие области - существующие на текущий момент учреждения типа "{build_type}"')
 
 #Собираем шаблон подсказки для столбцов(ячеек) карты
-df['metaInfo'] = "Насление: " + df[['customers_cnt_home', 'customers_cnt_move']].sum(axis=1).apply(str) +\
-                            "<br/><b>Прирост:</b> " + df[['customers_dlt_home', 'customers_dlt_move']].sum(axis=1).apply(str) + \
-                            "<br/><b>Логистика:</b> " + df['logistic'].apply(str) + \
-                            "<br/><b>Необходимость постройки учреждения:</b> <br/>" + df[model_key].apply(lambda m: '🔴'*int(m)) + df[model_key].apply(lambda m: '⭕'*(5-int(m)))
 
 mfc_df = mfc_info_df.copy() if print_all_btn else mfc_info_df.loc[mfc_info_df['global_id'].isin(df['nearest_mfc_id'])]
 
@@ -203,29 +199,36 @@ import re
 mfc_df['geodata_center'] = mfc_df['geodata_center'].apply(lambda x: tuple(map(float, re.findall(r'[0-9]+\.[0-9]+', str(x)))))
 
 
-world_map = st.empty()
+map_widget = st.empty()
 
 if is_run_build:
     id_cell = int(id_cell)
-    mfc_df.loc[len(df)] = {"global_id ":-1.0,       
+    mfc_df.loc[df.index.max()+1] = {"global_id":-1,       
                             "Address":address,          
                             "ShortName":f'{build_type} "Предварительный"',        
-                            "WindowCount":windows_count,      
-                            'geodata_center':(float(df.loc[df['zid'] == id_cell]['lon'].values[0]),float(df.loc[df['zid'] == id_cell]['lat'].values[0])),
+                            "WindowCount": int(windows_count),      
+                            "geodata_center":(float(df.loc[df['zid'] == id_cell]['lon'].values[0]),float(df.loc[df['zid'] == id_cell]['lat'].values[0])),
                             "lon":df.loc[df['zid'] == id_cell]['lon'].values[0],             
                             "lat":df.loc[df['zid'] == id_cell]['lat'].values[0],            
                             "District":"",
                             "metaInfo":"",}
+                            
     
+    neighbour_distance = 10 #km
+    stqdm.pandas()
+
+    mfc_df['neighbour_mfc'] = mfc_df['global_id'].progress_apply(lambda x: 
+                                                             mfc_df.loc[mfc_df['geodata_center'].apply(lambda y: geopy.distance.distance(y,mfc_df.loc[mfc_df['global_id']==x]['geodata_center']).km <= neighbour_distance)]['global_id'].values)
+
     stqdm.pandas(desc = "Процесс повторного поиска учреждений")
-    df['nearest_mfc_id'] = 0
+    #df['nearest_mfc_id'] = 0
     df['nearest_mfc_id'] = df['zid'].progress_apply(
     lambda x: mfc_df.loc[mfc_df['geodata_center'].apply(
         lambda y: geopy.distance.distance((y[0],y[1]),
                           (float(df.loc[df['zid']==x]['lat'].values[0]),
                            float(df.loc[df['zid']==x]['lon'].values[0]))
                                     ).m
-        ).idxmin()]['global_id'])
+        ).idxmin()]['global_id'] if df.loc[df['zid']==x]['nearest_mfc_id'].values[0] in mfc_df.loc[mfc_df['global_id'] == -1]['neighbour_mfc'].values[0] else df.loc[df['zid']==x]['nearest_mfc_id'].values[0])
 
     stqdm.pandas(desc = "Рачёт дистанций до учреждений")
     df['nearest_mfc_distance'] = -1
@@ -235,10 +238,6 @@ if is_run_build:
 
 
 
-    mfc_df['metaInfo'] = "Краткое название: " + mfc_df['ShortName'] + \
-                    "<br/>Адрес учреждения: " + mfc_df['Address'] + \
-                    "<br/>Загруженность текущая/максимальная: " + mfc_df['people_flow_rate'].apply(str) + "/" + mfc_df['max_people_flow'].apply(str) + \
-                    "<br/>Степень загруженности: " + (mfc_df['people_flow_rate']/ mfc_df['max_people_flow']).apply(lambda x: f"{x:.{3}f}") + " - " +  (mfc_df['people_flow_rate']/ mfc_df['max_people_flow']).apply(lambda x: get_assessment(x).lower())
 
     stqdm.pandas(desc = "Процесс повторной прогонки модели")
     if model_type == 'mfc_chance_agreg':
@@ -255,7 +254,7 @@ if is_run_build:
         for feature in ['home', 'job', 'day', 'move']:
             df[model_type] = df[model_type] + alphas_dlt[feature] *  df[f'customers_dlt_{feature}']  
             
-        df[model_type] = df[model_type] + (df['nearest_mfc'])# / 43617.48364582916)*1000
+        df[model_type] = df[model_type] + (df['nearest_mfc_distance'])# / 43617.48364582916)*1000
         df[model_type] = df[model_type] + (df['logistic'])
 
         df[model_type] = df[model_type].progress_apply(lambda x: 1 + 5* x / 42070.344117)
@@ -287,14 +286,22 @@ if is_run_build:
         #Расчёт необходимости исходя из логистики
         df[model_type] = df[model_type] +  (df['nearest_mfc_id'].progress_apply(lambda x: coeff_logistic(df.loc[df['nearest_mfc_id'] == x]['logistic'].mean())) /  df['logistic']).apply(lambda x: coeff_logistic(x)) #
 
+mfc_df['metaInfo'] = "Краткое название: " + mfc_df['ShortName'] + \
+                    "<br/>Адрес учреждения: " + mfc_df['Address'] + \
+                    "<br/>Загруженность текущая/максимальная: " + mfc_df['people_flow_rate'].apply(str) + "/" + mfc_df['max_people_flow'].apply(str) + \
+                    "<br/>Степень загруженности: " + (mfc_df['people_flow_rate']/ mfc_df['max_people_flow']).apply(lambda x: f"{x:.{3}f}") + " - " +  (mfc_df['people_flow_rate']/ mfc_df['max_people_flow']).apply(lambda x: get_assessment(x).lower())
 
 
-
+df['metaInfo'] = "Насление: " + df[['customers_cnt_home', 'customers_cnt_move']].sum(axis=1).apply(str) +\
+            "<br/><b>Прирост:</b> " + df[['customers_dlt_home', 'customers_dlt_move']].sum(axis=1).apply(str) + \
+            "<br/><b>Логистика:</b> " + df['logistic'].apply(str) + \
+            "<br/><b>Необходимость постройки учреждения:</b> <br/>" + df[model_key].apply(lambda m: '🔴'*int(m)) + df[model_key].apply(lambda m: '⭕'*(5-int(m))) + \
+            "<br/><b>ID ячейки:</b> " + df['zid'].apply(str)
 
 tooltip_template = '{metaInfo}'
 layers=[
     pdk.Layer("ColumnLayer", #слой для отображения колонок вероятности постройки учреждения
-    data=df,
+    data=df[['lon', 'lat', 'metaInfo', model_key]],
     get_position='[lon,lat]',
     get_elevation=model_key,
     elevation_scale=200,
@@ -305,13 +312,10 @@ layers=[
     )]
 
 
-
-
-
 if show_mfc:
 
     layers.append(pdk.Layer("ColumnLayer", #слой для отображения уже существующих МФЦ
-        data=mfc_df,
+        data=mfc_df[['lon', 'lat', 'metaInfo']],
         get_position='[lat,lon]',
         elevation=100,#"WindowCount",
         elevation_scale=1,
