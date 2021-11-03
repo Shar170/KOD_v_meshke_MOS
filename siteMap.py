@@ -241,9 +241,9 @@ with st.spinner('Идёт просчёт, это займёт около 5 ми�
                                         (df.loc[df['zid']==x]['lat'].values[0], df.loc[df['zid']==x]['lon'].values[0])).m)
 
         people_to_one_window = 3000
+        summ_columns = ['customers_cnt_home','customers_cnt_job','customers_cnt_day'] #поля по которым будет осуществляться сумма плотности людей
         mfc_df['people_flow_rate'] = mfc_df['global_id'].apply(lambda x: df.loc[df['nearest_mfc_id'] == x][summ_columns].values.sum())
         mfc_df['max_people_flow'] = mfc_df['WindowCount'] * people_to_one_window 
-        summ_columns = ['customers_cnt_home','customers_cnt_job','customers_cnt_day'] #поля по которым будет осуществляться сумма плотности людей
         mfc_df['future_people_flow_rate'] = mfc_df['global_id'].apply(lambda x: df.loc[df['nearest_mfc_id'] == x][summ_columns].values.sum())
 
         st.dataframe(mfc_df)
