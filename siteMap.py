@@ -158,6 +158,7 @@ if active_tab == tabs[0]: #анализ блок
     st.sidebar.write(models_descr[model_type])
 elif active_tab == tabs[1]: #строительный блок
     print_all_btn = True
+    #adm_zone = st.sidebar.selectbox('Выберите административную зону',adm_names, )
     show_mfc = True
     build_type = st.sidebar.selectbox('Выберите тип учреждения',b_types_array)
     address = st.sidebar.text_input(f"Адрес будующего учреждения ({build_type})")
@@ -208,6 +209,10 @@ with st.spinner('Идёт просчёт, это займёт около 5 ми�
     
     if is_run_build:
         id_cell = int(id_cell)
+        neighbour_distance = 10 #km
+        
+        mfc_df['neighbour_mfc'] = mfc_df['global_id'].apply(lambda x: 
+                                                                mfc_df.loc[mfc_df['geodata_center'].apply(lambda y: geopy.distance.distance(y,mfc_df.loc[mfc_df['global_id']==x]['geodata_center']).km <= neighbour_distance)]['global_id'].values)
         mfc_df.loc[df.index.max()+1] = {"global_id":-1,       
                                 "Address":address,          
                                 "ShortName":f'{build_type} "Предварительный"',        
@@ -216,12 +221,10 @@ with st.spinner('Идёт просчёт, это займёт около 5 ми�
                                 "lon":df.loc[df['zid'] == id_cell]['lat'].values[0],             
                                 "lat":df.loc[df['zid'] == id_cell]['lon'].values[0],            
                                 "District":"",
-                                "metaInfo":"",}
-        neighbour_distance = 10 #km
+                                "metaInfo":"",
+                                "neighbour_mfc":mfc_df.loc[mfc_df['global_id'] == df.loc[df['zid']==id_cell]['nearest_mfc_id'].values[0]]['neighbour_mfc'].values[0],}
         stqdm.pandas()
 
-        mfc_df['neighbour_mfc'] = mfc_df['global_id'].apply(lambda x: 
-                                                                mfc_df.loc[mfc_df['geodata_center'].apply(lambda y: geopy.distance.distance(y,mfc_df.loc[mfc_df['global_id']==x]['geodata_center']).km <= neighbour_distance)]['global_id'].values)
 
         message.info("Процесс повторного поиска учреждений")
 
