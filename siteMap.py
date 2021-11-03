@@ -202,92 +202,92 @@ mfc_df['geodata_center'] = mfc_df['geodata_center'].apply(lambda x: tuple(map(fl
 map_widget = st.empty()
 
 
-map_widget.spinner('Идёт просчёт, это займёт около 5 минут...')
+with st.spinner('Идёт просчёт, это займёт около 5 минут...'):
 
-if is_run_build:
-    id_cell = int(id_cell)
-    mfc_df.loc[df.index.max()+1] = {"global_id":-1,       
-                            "Address":address,          
-                            "ShortName":f'{build_type} "Предварительный"',        
-                            "WindowCount": int(windows_count),      
-                            "geodata_center":(float(df.loc[df['zid'] == id_cell]['lon'].values[0]),float(df.loc[df['zid'] == id_cell]['lat'].values[0])),
-                            "lon":df.loc[df['zid'] == id_cell]['lon'].values[0],             
-                            "lat":df.loc[df['zid'] == id_cell]['lat'].values[0],            
-                            "District":"",
-                            "metaInfo":"",}
-                            
-    
-    neighbour_distance = 10 #km
-    stqdm.pandas()
-
-    mfc_df['neighbour_mfc'] = mfc_df['global_id'].apply(lambda x: 
-                                                             mfc_df.loc[mfc_df['geodata_center'].apply(lambda y: geopy.distance.distance(y,mfc_df.loc[mfc_df['global_id']==x]['geodata_center']).km <= neighbour_distance)]['global_id'].values)
-
-    stqdm.pandas(desc = "Процесс повторного поиска учреждений")
-    #df['nearest_mfc_id'] = 0
-    df['nearest_mfc_id'] = df['zid'].apply(
-    lambda x: mfc_df.loc[mfc_df['geodata_center'].apply(
-        lambda y: geopy.distance.distance((y[0],y[1]),
-                          (float(df.loc[df['zid']==x]['lat'].values[0]),
-                           float(df.loc[df['zid']==x]['lon'].values[0]))
-                                    ).m
-        ).idxmin()]['global_id'] if df.loc[df['zid']==x]['nearest_mfc_id'].values[0] in mfc_df.loc[mfc_df['global_id'] == -1]['neighbour_mfc'].values[0] else df.loc[df['zid']==x]['nearest_mfc_id'].values[0])
-
-    stqdm.pandas(desc = "Рачёт дистанций до учреждений")
-    df['nearest_mfc_distance'] = -1
-    df['nearest_mfc_distance'] = df['zid'].apply(
-    lambda x: geopy.distance.distance(mfc_df.loc[mfc_df['global_id'] == df.loc[df['zid']==x]['nearest_mfc_id'].values[0]]['geodata_center'], 
-                                    (df.loc[df['zid']==x]['lat'].values[0], df.loc[df['zid']==x]['lon'].values[0])).m)
-
-
-
-
-    stqdm.pandas(desc = "Процесс повторной прогонки модели")
-    if model_type == 'mfc_chance_agreg':
-        df[model_type] = 0
-
-        #Настройка влияния весов на параметры плотности людей
-        alphas = {'home':1.0,'job':1.0,'day':1.0, 'move':1.0}
-        alphas_dlt = {'home':0.5,'job':0.5,'day':0.5, 'move':0.5}
-
-        stqdm.pandas(desc="Перерасчёт точесной модели оптимизации")
-
-        for feature in ['home', 'job', 'day', 'move']:
-            df[model_type] = df[model_type] + alphas[feature] * df[f'customers_cnt_{feature}']
-        for feature in ['home', 'job', 'day', 'move']:
-            df[model_type] = df[model_type] + alphas_dlt[feature] *  df[f'customers_dlt_{feature}']  
-            
-        df[model_type] = df[model_type] + (df['nearest_mfc_distance'])# / 43617.48364582916)*1000
-        df[model_type] = df[model_type] + (df['logistic'])
-
-        df[model_type] = df[model_type].apply(lambda x: 1 + 5* x / 42070.344117)
-    else :
+    if is_run_build:
+        id_cell = int(id_cell)
+        mfc_df.loc[df.index.max()+1] = {"global_id":-1,       
+                                "Address":address,          
+                                "ShortName":f'{build_type} "Предварительный"',        
+                                "WindowCount": int(windows_count),      
+                                "geodata_center":(float(df.loc[df['zid'] == id_cell]['lon'].values[0]),float(df.loc[df['zid'] == id_cell]['lat'].values[0])),
+                                "lon":df.loc[df['zid'] == id_cell]['lon'].values[0],             
+                                "lat":df.loc[df['zid'] == id_cell]['lat'].values[0],            
+                                "District":"",
+                                "metaInfo":"",}
+                                
         
-        def coeff_flow(percent):
-            input_arr = [0.75,0.95,1.1,1.5,5]
-            output_arr = [0.3,0.7,1.3,2,2]
-            return np.interp(percent, input_arr, output_arr, left=0.0, right=2.0)
+        neighbour_distance = 10 #km
+        stqdm.pandas()
 
-        def coeff_distance(km_dist):
-            input_arr = [2,3.5,5]
-            output_arr = [0.3,0.7,1.0]
-            return np.interp(km_dist, input_arr, output_arr, left=0.0,right=1.0)
+        mfc_df['neighbour_mfc'] = mfc_df['global_id'].apply(lambda x: 
+                                                                mfc_df.loc[mfc_df['geodata_center'].apply(lambda y: geopy.distance.distance(y,mfc_df.loc[mfc_df['global_id']==x]['geodata_center']).km <= neighbour_distance)]['global_id'].values)
 
-        def coeff_logistic(log_persent):
-            input_arr = [0.5,1,1.5]
-            output_arr = [0.3,0.5,1.0,]
-            return np.interp(log_persent, input_arr, output_arr, left=0.0,right=1.0)
-    
-        #Расчёт необходимости исходя из текущей загруженности
-        df[model_type] = df['nearest_mfc_id'].apply(lambda x: coeff_flow(mfc_df.loc[mfc_df['global_id'] == x]['people_flow_rate'].values[0] / mfc_df.loc[mfc_df['global_id'] == x]['max_people_flow'].values[0]) )
-        #Расчёт необходимости исходя из будущей загруженности
-        summ_columns = ['customers_cnt_home','customers_cnt_job','customers_cnt_day'] #поля по которым будет осуществляться сумма плотности людей
-        mfc_df['future_people_flow_rate'] = mfc_df['global_id'].apply(lambda x: df.loc[df['nearest_mfc_id'] == x][summ_columns].values.sum())
-        df[model_type] = df[model_type] + 0.5 *   df['nearest_mfc_id'].apply(lambda x: coeff_flow(mfc_df.loc[mfc_df['global_id'] == x]['future_people_flow_rate'].values[0] / mfc_df.loc[mfc_df['global_id'] == x]['max_people_flow'].values[0]) )
-        #Расчёт необходимости исходя из удалённости 
-        df[model_type] = df[model_type] +  df['nearest_mfc_distance'].apply(lambda x: coeff_distance(x / 1000.0) )
-        #Расчёт необходимости исходя из логистики
-        df[model_type] = df[model_type] +  (df['nearest_mfc_id'].apply(lambda x: coeff_logistic(df.loc[df['nearest_mfc_id'] == x]['logistic'].mean())) /  df['logistic']).apply(lambda x: coeff_logistic(x)) #
+        stqdm.pandas(desc = "Процесс повторного поиска учреждений")
+        #df['nearest_mfc_id'] = 0
+        df['nearest_mfc_id'] = df['zid'].apply(
+        lambda x: mfc_df.loc[mfc_df['geodata_center'].apply(
+            lambda y: geopy.distance.distance((y[0],y[1]),
+                            (float(df.loc[df['zid']==x]['lat'].values[0]),
+                            float(df.loc[df['zid']==x]['lon'].values[0]))
+                                        ).m
+            ).idxmin()]['global_id'] if df.loc[df['zid']==x]['nearest_mfc_id'].values[0] in mfc_df.loc[mfc_df['global_id'] == -1]['neighbour_mfc'].values[0] else df.loc[df['zid']==x]['nearest_mfc_id'].values[0])
+
+        stqdm.pandas(desc = "Рачёт дистанций до учреждений")
+        df['nearest_mfc_distance'] = -1
+        df['nearest_mfc_distance'] = df['zid'].apply(
+        lambda x: geopy.distance.distance(mfc_df.loc[mfc_df['global_id'] == df.loc[df['zid']==x]['nearest_mfc_id'].values[0]]['geodata_center'], 
+                                        (df.loc[df['zid']==x]['lat'].values[0], df.loc[df['zid']==x]['lon'].values[0])).m)
+
+
+
+
+        stqdm.pandas(desc = "Процесс повторной прогонки модели")
+        if model_type == 'mfc_chance_agreg':
+            df[model_type] = 0
+
+            #Настройка влияния весов на параметры плотности людей
+            alphas = {'home':1.0,'job':1.0,'day':1.0, 'move':1.0}
+            alphas_dlt = {'home':0.5,'job':0.5,'day':0.5, 'move':0.5}
+
+            stqdm.pandas(desc="Перерасчёт точесной модели оптимизации")
+
+            for feature in ['home', 'job', 'day', 'move']:
+                df[model_type] = df[model_type] + alphas[feature] * df[f'customers_cnt_{feature}']
+            for feature in ['home', 'job', 'day', 'move']:
+                df[model_type] = df[model_type] + alphas_dlt[feature] *  df[f'customers_dlt_{feature}']  
+                
+            df[model_type] = df[model_type] + (df['nearest_mfc_distance'])# / 43617.48364582916)*1000
+            df[model_type] = df[model_type] + (df['logistic'])
+
+            df[model_type] = df[model_type].apply(lambda x: 1 + 5* x / 42070.344117)
+        else :
+            
+            def coeff_flow(percent):
+                input_arr = [0.75,0.95,1.1,1.5,5]
+                output_arr = [0.3,0.7,1.3,2,2]
+                return np.interp(percent, input_arr, output_arr, left=0.0, right=2.0)
+
+            def coeff_distance(km_dist):
+                input_arr = [2,3.5,5]
+                output_arr = [0.3,0.7,1.0]
+                return np.interp(km_dist, input_arr, output_arr, left=0.0,right=1.0)
+
+            def coeff_logistic(log_persent):
+                input_arr = [0.5,1,1.5]
+                output_arr = [0.3,0.5,1.0,]
+                return np.interp(log_persent, input_arr, output_arr, left=0.0,right=1.0)
+        
+            #Расчёт необходимости исходя из текущей загруженности
+            df[model_type] = df['nearest_mfc_id'].apply(lambda x: coeff_flow(mfc_df.loc[mfc_df['global_id'] == x]['people_flow_rate'].values[0] / mfc_df.loc[mfc_df['global_id'] == x]['max_people_flow'].values[0]) )
+            #Расчёт необходимости исходя из будущей загруженности
+            summ_columns = ['customers_cnt_home','customers_cnt_job','customers_cnt_day'] #поля по которым будет осуществляться сумма плотности людей
+            mfc_df['future_people_flow_rate'] = mfc_df['global_id'].apply(lambda x: df.loc[df['nearest_mfc_id'] == x][summ_columns].values.sum())
+            df[model_type] = df[model_type] + 0.5 *   df['nearest_mfc_id'].apply(lambda x: coeff_flow(mfc_df.loc[mfc_df['global_id'] == x]['future_people_flow_rate'].values[0] / mfc_df.loc[mfc_df['global_id'] == x]['max_people_flow'].values[0]) )
+            #Расчёт необходимости исходя из удалённости 
+            df[model_type] = df[model_type] +  df['nearest_mfc_distance'].apply(lambda x: coeff_distance(x / 1000.0) )
+            #Расчёт необходимости исходя из логистики
+            df[model_type] = df[model_type] +  (df['nearest_mfc_id'].apply(lambda x: coeff_logistic(df.loc[df['nearest_mfc_id'] == x]['logistic'].mean())) /  df['logistic']).apply(lambda x: coeff_logistic(x)) #
 
 mfc_df['metaInfo'] = "Краткое название: " + mfc_df['ShortName'] + \
                     "<br/>Адрес учреждения: " + mfc_df['Address'] + \
