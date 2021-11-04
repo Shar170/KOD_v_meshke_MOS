@@ -7,6 +7,9 @@ import random
 from stqdm import stqdm
 import geopy.distance
 
+import os
+import streamlit.components.v1 as components 
+
 #инициализация параметров страницы
 st.set_page_config(
     page_title="KOD в мешке App",
@@ -24,7 +27,7 @@ st.sidebar.markdown(
     unsafe_allow_html=True,)
 
 query_params = st.experimental_get_query_params()
-tabs = ["Анализ", "Строительство"]
+tabs = ["Анализ", "Строительство", "Инструкция"]
 if "tab" in query_params:
     active_tab = query_params["tab"][0]
 else:
@@ -51,6 +54,12 @@ tabs_html = f"""
 st.sidebar.markdown(tabs_html, unsafe_allow_html=True)
 st.sidebar.markdown("<br>", unsafe_allow_html=True)
 
+
+
+if active_tab == tabs[2]: #Раздел помощи
+    help_text = open("README.md").readlines()
+    st.markdown(help_text)
+    st.stop()
 
 
 def read_shapefile(sf_shape):
@@ -139,44 +148,55 @@ loc_names = load_names()
 c_locations = load_loc_info()
 adm_names = get_unic_names()
 mfc_info_df = load_mfc_info()
-b_types_array = ['МФЦ','Школа','Торговый центр']
+b_types_array = ['','МФЦ','Школа','Торговый центр']
 
 
 #создаём селект боксы и заголовки страницы
 st.title('Проект команды "KOD в мешке"')
 
 is_run_build = None
-models_dict = {'Точечная модель':'mfc_chance_agreg','Секторная модель':'mfc_chance_balance'}
-models_descr = {'Точечная модель':'Точечная модель позволяет оценивать локальную необходимость простройки учреждения','Секторная модель':'Строит сектора дочерник к учреждениям областей. Полезна для оценки производительности учреждений'}
+models_dict = {'Ничего':'','Точечная модель':'mfc_chance_agreg','Секторная модель':'mfc_chance_balance'}
+models_descr = {'Ничего':'','Точечная модель':'Точечная модель позволяет оценивать локальную необходимость простройки учреждения','Секторная модель':'Строит сектора дочерник к учреждениям областей. Полезна для оценки производительности учреждений'}
 
 if active_tab == tabs[0]: #анализ блок
-    adm_zone = st.sidebar.selectbox('Выберите административную зону',adm_names, )
-    print_all_btn = st.sidebar.checkbox('Вывести для всех регионов', value=False)
-    build_type = st.sidebar.selectbox('Выберите тип учреждения',b_types_array)
-    show_mfc = st.sidebar.checkbox('Показать учреждения на карте', value=False)
-    model_type = st.sidebar.selectbox('Выберите модель расчётов',models_dict)
-    st.sidebar.write(models_descr[model_type])
-    hide_model = st.sidebar.checkbox('Скрыть отображение модели?', value=False)
+    build_type = st.sidebar.selectbox('Выберите тип учреждения',b_types_array, key='build_type')
+    if build_type != '':
+        show_mfc = (build_type != '') #st.sidebar.checkbox('Показать учреждения на карте', value=False)
+        adm_zone = st.sidebar.selectbox('Выберите административную зону',np.concatenate(( [''],adm_names)), help = "Целевой район Москвы")
+        model_type = st.sidebar.radio('Выберите модель расчётов',models_dict, key='model_type')
+        st.sidebar.write(models_descr[model_type])
+        print_all_btn = st.sidebar.checkbox('Вывести для всех регионов', value=(adm_zone== '') )
+        hide_model = model_type == "Ничего"#st.sidebar.checkbox('Скрыть отображение модели?', value=False)
+    else:
+        show_mfc = False
+        adm_zone = ''
+        model_type = 'Ничего'
+        print_all_btn = False
+        hide_model = model_type == "Ничего"
+
 elif active_tab == tabs[1]: #строительный блок
     print_all_btn = True
     #adm_zone = st.sidebar.selectbox('Выберите административную зону',adm_names, )
     show_mfc = True
-    build_type = st.sidebar.selectbox('Выберите тип учреждения',b_types_array)
+    build_type = st.sidebar.selectbox('Выберите тип учреждения',b_types_array, key='build_type')
     address = st.sidebar.text_input(f"Адрес будующего учреждения ({build_type})")
-    windows_count = st.sidebar.text_input("Количество окон", value=20)
-    model_type = st.sidebar.selectbox('Выберите модель расчётов',models_dict)
+    windows_count = st.sidebar.number_input("Количество окон", value=20)
+    model_type = st.sidebar.radio('Выберите модель расчётов',models_dict, key='model_type')
     st.sidebar.write(models_descr[model_type])
     hide_model = st.sidebar.checkbox('Скрыть отображение модели?', value=False)
-    id_cell = st.sidebar.text_input("ID ячейки строительства", value=42400)
-
-    is_run_build = st.sidebar.button("Построить!")
+    id_cell = int(st.sidebar.text_input("ID ячейки строительства", value=42400))
+    if id_cell in c_locations['zid'].values:
+        is_run_build = st.sidebar.button("Построить!")
+    else:
+        is_run_build = False
+        st.sidebar.error(f"{id_cell} такой ячейки не существует!")
 else:
     st.sidebar.error("Something has gone terribly wrong.")
 
 
 model_key = models_dict[model_type]
 st.sidebar.image('whiteCat.png', width=100)
-c_locations['adm_name'] = c_locations['zid'].apply(lambda x: loc_names.loc[x == loc_names['cell_zid']]['adm_name'].values[0])
+#c_locations['adm_name'] = c_locations['zid'].apply(lambda x: loc_names.loc[x == loc_names['cell_zid']]['adm_name'].values[0])
 #извлекаем ячейки выбранного в меню района Москвы
 if print_all_btn:
     df = c_locations.copy()#.loc[c_locations['zid'].isin(loc_names.loc[loc_names['adm_name'] == adm_zone]['cell_zid'])]
@@ -185,16 +205,7 @@ else:
 
 #Выводим описание выбранного региона (население, площадь) и информацию 
 
-if print_all_btn:
-    st.write(f'''Вы выбрали всю Москву сейчас население в ней: {sum(df["customers_cnt_home"].values) + sum(df["customers_cnt_move"].values)} чел. на { df.shape[0]*0.25} км²''')
-else:
-    st.write(f'''Вы выбрали район "{adm_zone}" сейчас население в нём: {sum(df["customers_cnt_home"].values) + sum(df["customers_cnt_move"].values)} чел. на { df.shape[0]*0.25} км²''')
 
-st.write(f'🔴 Красные области - места с высокой потребностью в учреждениях типа "{build_type}"')
-st.write(f'🟢 Зелёные области - места с низкой потребностью в учреждениях типа "{build_type}"')
-st.write(f'🔵 Синие области - существующие на текущий момент учреждения типа "{build_type}"')
-
-#Собираем шаблон подсказки для столбцов(ячеек) карты
 
 mfc_df = mfc_info_df.copy() if print_all_btn else mfc_info_df.loc[mfc_info_df['global_id'].isin(df['nearest_mfc_id'])]
 
@@ -231,8 +242,8 @@ with st.spinner('Идёт просчёт, это займёт около 5 ми�
         array.extend([-1])
         #print("до ",mfc_df.shape)
         mfc_df.loc[len(mfc_df)] = {"global_id":-1,       
-                        "Address":"address",          
-                        "ShortName":f'build_type "Предварительный"',        
+                        "Address":address,          
+                        "ShortName":f'{build_type} "Предварительный"',        
                         "WindowCount": int(40),      
                         "geodata_center":[float(df.loc[df['zid'] == id_cell]['lat'].values[0]),
                                           float(df.loc[df['zid'] == id_cell]['lon'].values[0])],
@@ -335,32 +346,34 @@ with st.spinner('Идёт просчёт, это займёт около 5 ми�
         else:
             st.error("Просчёт модели невозможет, ключ модели неверен!")
 
+#Собираем шаблон подсказки для столбцов(ячеек) карты
 message.empty()
 mfc_df['metaInfo'] = "Краткое название: " + mfc_df['ShortName'] + \
                     "<br/>Адрес учреждения: " + mfc_df['Address'] + \
                     "<br/>Загруженность текущая/максимальная: " + mfc_df['people_flow_rate'].apply(str) + "/" + mfc_df['max_people_flow'].apply(str) + \
                     "<br/>Степень загруженности: " + (mfc_df['people_flow_rate']/ mfc_df['max_people_flow']).apply(lambda x: f"{x:.{3}f}") + " - " +  (mfc_df['people_flow_rate']/ mfc_df['max_people_flow']).apply(lambda x: get_assessment(x).lower())
 
-
-df['metaInfo'] = "Насление: " + df[['customers_cnt_home', 'customers_cnt_move']].sum(axis=1).apply(str) +\
+#"<b>Ячейка района</b> " + df['adm_name'].apply(str) +\
+df['metaInfo'] = "" + \
+            "<br/><b>Насление</b> : " + df[['customers_cnt_home', 'customers_cnt_move']].sum(axis=1).apply(str)  +\
             "<br/><b>Прирост:</b> " + df[['customers_dlt_home', 'customers_dlt_move']].sum(axis=1).apply(str) + \
             "<br/><b>Логистика:</b> " + df['logistic'].apply(str) + \
-            "<br/><b>Необходимость постройки учреждения:</b> <br/>" + df[model_key].apply(lambda m: '🔴'*int(m)) + df[model_key].apply(lambda m: '⭕'*(5-int(m))) + \
+            ("<br/><b>Необходимость постройки учреждения:</b> <br/>" + df[model_key].apply(lambda m: '🔴'*int(min(5,m))) + df[model_key].apply(lambda m: '⭕'*(5-int(m)))) if model_key != '' else '' + \
             "<br/><b>ID ячейки:</b> " + df['zid'].apply(str) + \
-            "<br/><b>Район:</b> " + df['adm_name'].apply(str) +\
-            "<br/><b>МФЦ:</b> " + df['nearest_mfc_id'].apply(str)
+            "<br/><b>ID МФЦ:</b> " + df['nearest_mfc_id'].apply(str)
             
 
 tooltip_template = '{metaInfo}'
-if not hide_model:
+if not hide_model and model_key != '':
     layers=[
-        pdk.Layer("ColumnLayer", #слой для отображения колонок вероятности постройки учреждения
-        data=df[['lon', 'lat', 'metaInfo', model_key]],
+        pdk.Layer("ScatterplotLayer", #слой для отображения колонок вероятности постройки учреждения
+        data=df[['zid','lon', 'lat', 'metaInfo', model_key]],
         get_position='[lon,lat]',
-        get_elevation=model_key,
-        elevation_scale=200,
-        radius=250,
-        get_fill_color=[f"{model_key} * 42 - 15",f"255-{model_key}*42",20, 255],
+        elevation = 1,# = "none",#=model_key,
+        elevation_scale=0,
+        get_radius=250,
+        get_fill_color=[ f"{model_key} * 42 - 15",f"255-{model_key}*42",10,f"100+{model_key}*22"],# f"{model_key} * 42 - 15"],
+        #get_border_color=[f"{model_key} * 42 - 15",f"255-{model_key}*42",20, 100],
         pickable=True,
         auto_highlight=True,
         )]
@@ -381,14 +394,16 @@ if show_mfc:
         ))
 
 #Инициализируем карту районов и известных учреждений
-preview_lat = df['lat'].values[0]
-preview_lon = df['lon'].values[0]
+preview_lat = 55.752004
+preview_lon = 37.617734
 if is_run_build:
     preview_lat = df.loc[df['zid'] == id_cell]['lat'].values[0]
     preview_lon = df.loc[df['zid'] == id_cell]['lon'].values[0]
 
 world_map = pdk.Deck(
-    map_style='mapbox://styles/mapbox/light-v9',
+    map_style=pdk.map_styles.ROAD,#'mapbox://styles/mapbox/light-v9',
+    api_keys = {'mapbox':'pk.eyJ1Ijoic2hhcjE3MCIsImEiOiJja3ZrMHl1azAyYmVuMndxNTZmOWgyeG9yIn0._UpnTtbmZ7hxPU_Ff5SMRw'},
+    map_provider='mapbox',
     initial_view_state=pdk.ViewState(latitude=preview_lat,longitude=preview_lon,zoom=11,pitch=50,),
      tooltip = {
         "html": tooltip_template,
@@ -397,13 +412,68 @@ world_map = pdk.Deck(
     layers=layers,
 )
 
-#map_widget = 
-map_widget.pydeck_chart(world_map)
+#world_map.deck_widget.on_click()
+
+click_code = """
+let mapboxglMap = document.getElementById('deck-container').children[1]
+
+mapboxglMap.onclick = async e => {
+if (deckInstance._lastPointerDownInfo != null ) {
+coords = await deckInstance._lastPointerDownInfo.object;
+console.log(coords.lat, coords.lon);
+window.open(`http://localhost:8501/?tab=Строительство&target_zid=${coords.zid}`);
+}
+}
+"""
+#let res = await axios.get(`http://localhost:8501/?tab=Строительство&target_zid=${coords.zid}`)
+
+library_code = '<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.24.0/axios.min.js" integrity="sha512-u9akINsQsAkG9xjc1cnGF4zw5TFDwkxuc9vUp5dltDWYCSmyd0meygbvgXrlc/z7/o4a19Fb5V0OUE58J7dcyw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>'
 
 
-#аналитика
 
-col1, col2, col3 = st.columns(3)
-col1.metric("Проживающие кол-во", str(sum(df['customers_cnt_home'].values) + sum(df['customers_cnt_move'].values)) + " чел.", str(sum(df['customers_dlt_home'].values)+sum(df['customers_dlt_move'].values)) + " чел.")
-col2.metric("Работающие кол-во", str(sum(df['customers_cnt_job'].values)) + " чел.", str(sum(df['customers_dlt_job'].values)) + " чел.")
-col3.metric("Дневное кол-во", str(sum(df['customers_cnt_day'].values)) + " чел.", str(sum(df['customers_dlt_day'].values)) + " чел.")
+if active_tab == tabs[1]:
+    random_file = f'{random.randint(10000,1000000)}_map.html'
+    world_map.to_html(random_file)
+    html_code = open(random_file).readlines()
+    html_code.insert(62,click_code)
+    html_code.insert(9,library_code)
+    os.remove(random_file)
+    #st.markdown(' '.join(html_code), unsafe_allow_html=True)
+    components.html(' '.join(html_code), height=600)
+elif active_tab == tabs[0]:
+    map_widget.pydeck_chart(world_map)
+#аналитикаЫ
+
+
+
+
+
+def print_main_tooltip():
+    global df,build_type
+    if build_type != '':
+        col1, col21, col22 = st.columns((1,2,2))
+        col01, col02 = st.columns((1,6))
+        col1.write(f"""
+        🔴 - высокая потребность
+        
+        🟢 - низкая потребность
+
+        🔵 - учреждения""")
+
+        if print_all_btn or adm_zone == '':
+            col02.write(f'''Вы выбрали всю Москву сейчас население в ней: {sum(df["customers_cnt_home"].values) + sum(df["customers_cnt_move"].values)} чел. на { df.shape[0]*0.25} км²''')
+        else:
+            col02.write(f'''Вы выбрали район "{adm_zone}" сейчас население в нём: {sum(df["customers_cnt_home"].values) + sum(df["customers_cnt_move"].values)} чел. на { df.shape[0]*0.25} км²''')
+            col22.metric("Проживающие кол-во", str(sum(df['customers_cnt_home'].values) + sum(df['customers_cnt_move'].values)) + " чел.", str(sum(df['customers_dlt_home'].values)+sum(df['customers_dlt_move'].values)) + " чел.")
+            col22.metric("Работающие кол-во", str(sum(df['customers_cnt_job'].values)) + " чел.", str(sum(df['customers_dlt_job'].values)) + " чел.")
+            col22.metric("Дневное кол-во", str(sum(df['customers_cnt_day'].values)) + " чел.", str(sum(df['customers_dlt_day'].values)) + " чел.")
+    else:
+
+        if print_all_btn or adm_zone == '':
+            st.write(f'''Вы выбрали всю Москву сейчас население в ней: {sum(c_locations["customers_cnt_home"].values) + sum(c_locations["customers_cnt_move"].values)} чел. на { c_locations.shape[0]*0.25} км²''')
+        else:
+            st.write(f'''Вы выбрали район "{adm_zone}" сейчас население в нём: {sum(c_locations["customers_cnt_home"].values) + sum(c_locations["customers_cnt_move"].values)} чел. на { c_locations.shape[0]*0.25} км²''')
+
+        st.write('Выберите тип учреждений, для отображения базовой статистики')
+
+print_main_tooltip()
