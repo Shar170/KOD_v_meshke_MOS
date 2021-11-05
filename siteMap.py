@@ -133,13 +133,17 @@ if active_tab == tabs[0]: #анализ блок
         adm_zone = st.sidebar.selectbox('Выберите административную зону',np.concatenate(( [''],adm_names)), help = "Целевой район Москвы")
         model_type = st.sidebar.radio('Выберите модель расчётов',models_dict, key='model_type')
         st.sidebar.write(models_descr[model_type])
-        print_all_btn = st.sidebar.checkbox('Вывести для всех регионов', value=(adm_zone== '') )
+        if adm_zone != '' :
+            print_all_btn = st.sidebar.checkbox('Вывести для всех регионов', value=(adm_zone== '') )
+        else:
+            print_all_btn = True
+            
         hide_model = model_type == "Ничего"#st.sidebar.checkbox('Скрыть отображение модели?', value=False)
     else:
         show_mfc = False
         adm_zone = ''
         model_type = 'Ничего'
-        print_all_btn = False
+        print_all_btn = True
         hide_model = model_type == "Ничего"
 
 elif active_tab == tabs[1]: #строительный блок
@@ -147,17 +151,32 @@ elif active_tab == tabs[1]: #строительный блок
     adm_zone = ""# = st.sidebar.selectbox('Выберите административную зону',adm_names, )
     show_mfc = True
     build_type = st.sidebar.selectbox('Выберите тип учреждения',b_types_array, key='build_type')
-    address = st.sidebar.text_input(f"Адрес будующего учреждения ({build_type})")
-    windows_count = st.sidebar.number_input("Количество окон", value=20)
-    model_type = st.sidebar.radio('Выберите модель расчётов',models_dict, key='model_type')
-    st.sidebar.write(models_descr[model_type])
-    hide_model = st.sidebar.checkbox('Скрыть отображение модели?', value=False)
-    id_cell = int(st.sidebar.text_input("ID ячейки строительства", value=42400))
-    if id_cell in c_locations['zid'].values:
-        is_run_build = st.sidebar.button("Построить!")
-    else:
+    address = ''# st.sidebar.text_input(f"Адрес будующего учреждения ({build_type})")
+    if build_type == 'МФЦ':
+        windows_count = st.sidebar.number_input("Количество окон", value=20)
+    if build_type == 'Школа':
+        windows_count = st.sidebar.number_input("Количество преподавателей", value=20)
+    if build_type == 'Торговый центр':
+        windows_count = st.sidebar.number_input("Предполагаемая проходимость людей в день", value=2000)
+    if build_type != '':
+        model_type = st.sidebar.radio('Выберите модель расчётов',models_dict, key='model_type', help='**Точечная модель** - позволяет оценить необходимость простройки учреждения в точках на карте. Используйте для уточнения  \n\n**Секторная модель** - группирует точки в сектора по необходимости постройки учреждения. Полезна для оценки производительности учреждений')
+        st.sidebar.write(models_descr[model_type])
+        if model_type != 'Ничего': 
+            hide_model = False#st.sidebar.checkbox('Скрыть отображение модели?', value=False)
+            st.sidebar.write(f'Выберите двойный кликом ячейку, чтобы построить "{build_type}"')
+        else:
+            hide_model = True
+            st.sidebar.write(f'Для начала выберите одну из математических моделей ')# "{build_type}"')
+
         is_run_build = False
-        st.sidebar.error(f"{id_cell} такой ячейки не существует!")
+        #     st.sidebar.error(f"{id_cell} такой ячейки не существует!")
+    else:
+        show_mfc = False
+        adm_zone = ''
+        model_type = 'Ничего'
+        print_all_btn = True
+        hide_model = True
+
 else:
     st.sidebar.error("Something has gone terribly wrong.")
 
@@ -228,7 +247,7 @@ with st.spinner('Идёт просчёт, это займёт около 5 ми�
         for x in df['zid']:
             if df.loc[df['zid']==x]['nearest_mfc_id'].values[0] in mfc_df.loc[mfc_df['global_id'] == -1]['neighbour_mfc'].values[0]:
                 target_cells.append(x)
-        st.write(f'необходимо просчитать {len(target_cells)} ячеек')
+        #st.write(f'необходимо просчитать {len(target_cells)} ячеек')
 
         df['nearest_mfc_id'] = df['zid'].apply(
         lambda x: mfc_df.loc[mfc_df['geodata_center'].apply(
@@ -263,9 +282,6 @@ with st.spinner('Идёт просчёт, это займёт около 5 ми�
         mfc_df['people_flow_rate'] = mfc_df['global_id'].apply(lambda x: df.loc[df['nearest_mfc_id'] == x][summ_columns].values.sum())
         mfc_df['max_people_flow'] = mfc_df['WindowCount'] * people_to_one_window 
         mfc_df['future_people_flow_rate'] = mfc_df['global_id'].apply(lambda x: df.loc[df['nearest_mfc_id'] == x][summ_columns].values.sum())
-
-        st.dataframe(mfc_df)
-
 
         message.info("Процесс повторной прогонки модели")
         if model_key == 'mfc_chance_agreg':
@@ -335,7 +351,7 @@ df['metaInfo'] = "" + \
 if is_run_build:
     preview_lat = df.loc[df['zid'] == id_cell]['lat'].values[0]
     preview_lon = df.loc[df['zid'] == id_cell]['lon'].values[0]
-elif len(df) > 0:
+elif len(df) > 0 and not print_all_btn:
     preview_lat = df['lat'].values[0]
     preview_lon = df['lon'].values[0]
 else:

@@ -42,6 +42,9 @@ def print_main_tooltip(small_dataset, full_dataset,adm_zone = '', print_all_btn 
         metrics_column.write("Москва")
     else:
         metrics_column.write(f"Район {adm_zone}")
+    if print_all_btn:
+        small_dataset = full_dataset
+        
         #colM.write(f'''Вы выбрали район "{adm_zone}" сейчас население в нём: {sum(small_dataset["customers_cnt_home"].values) + sum(small_dataset["customers_cnt_move"].values)} чел. на { small_dataset.shape[0]*0.25} км²''')
     metrics_column.metric("Проживающие кол-во\n человек", str(sum(small_dataset['customers_cnt_home'].values) + sum(small_dataset['customers_cnt_move'].values)), str(sum(small_dataset['customers_dlt_home'].values)+sum(small_dataset['customers_dlt_move'].values)))
     metrics_column.metric("Работающие кол-во\n человек", str(sum(small_dataset['customers_cnt_job'].values)) , str(sum(small_dataset['customers_dlt_job'].values)))
@@ -106,7 +109,7 @@ def show_map(small_dataset,mfc_df, hide_model = True, model_key = '', adm_zone =
     click_code = """
     let mapboxglMap = document.getElementById('deck-container').children[1]
 
-    mapboxglMap.onclick = async e => {
+    mapboxglMap.ondblclick = async e => {
         if (deckInstance._lastPointerDownInfo != null ) {
             coords = await deckInstance._lastPointerDownInfo.object;
             console.log(coords.lat, coords.lon);
