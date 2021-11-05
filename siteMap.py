@@ -7,8 +7,8 @@ import random
 from stqdm import stqdm
 import geopy.distance
 
-import os
-import streamlit.components.v1 as components 
+import master_block
+import left_block
 
 #инициализация параметров страницы
 st.set_page_config(
@@ -20,46 +20,14 @@ st.set_page_config(
         'About': "Проект КОД в мешке. *Рекомендательная система* для поиска наиболее оптимального построения раличных соц. учреждений! Наш GitHub: https://github.com/Shar170/KOD_v_meshke_MOS"
     }
     )
+tabs = left_block.tabs
+active_tab = left_block.show_tabs()
 
 
-st.sidebar.markdown(
-    '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/css/bootstrap.min.css" integrity="sha384-TX8t27EcRE3e/ihU7zmQxVncDAy5uIKz4rEkgIXeMed4M0jlfIDPvg6uqKI2xXr2" crossorigin="anonymous">',
-    unsafe_allow_html=True,)
-
-query_params = st.experimental_get_query_params()
-tabs = ["Анализ", "Строительство", "Инструкция"]
-if "tab" in query_params:
-    active_tab = query_params["tab"][0]
-else:
-    active_tab = tabs[0]
-
-if active_tab not in tabs:
-    st.experimental_set_query_params(tab=tabs[0])
-    active_tab = tabs[0]
-
-li_items = "".join(
-    f"""
-    <li class="nav-item">
-        <a class="nav-link{' active' if t==active_tab else ''}" href="/?tab={t}">{t}</a>
-    </li>
-    """
-    for t in tabs
-)
-tabs_html = f"""
-    <ul class="nav nav-tabs">
-    {li_items}
-    </ul>
-"""
-
-st.sidebar.markdown(tabs_html, unsafe_allow_html=True)
-st.sidebar.markdown("<br>", unsafe_allow_html=True)
-
-
-
-if active_tab == tabs[2]: #Раздел помощи
-    help_text = open("README.md").readlines()
-    st.markdown(help_text)
-    st.stop()
+# if active_tab == tabs[2]: #Раздел помощи
+#     help_text = open("README.md").readlines()
+#     st.markdown(help_text)
+#     st.stop()
 
 
 def read_shapefile(sf_shape):
@@ -76,18 +44,18 @@ def read_shapefile(sf_shape):
     df = df.assign(coords=shps)
     return df
 
-@st.cache
-def load_shp():
+@st.cache(allow_output_mutation=True)
+def load_shp(shp_path, dbf_path):
     """
     Функция загрузки shape файла о разбиении на ячейки
     """
     #загружаем информацию о сеточном рабиении МО в память
-    myshp = open("fishnet2021.shp", "rb")
-    mydbf = open("fishnet2021.dbf", "rb")
+    myshp = open(shp_path, "rb")
+    mydbf = open(dbf_path, "rb")
     r = shapefile.Reader(shp=myshp, dbf=mydbf)
     return read_shapefile(r)
     #в поле coords первая координата центр квадрата, остальные его углы
-s_df = load_shp()
+s_df = load_shp("fishnet2021.shp", "fishnet2021.dbf")
 
 @st.cache
 def load_h_w():
@@ -127,7 +95,7 @@ def get_assessment(percent):
     if percent < 0.5:                   outstr = 'Очень низкая'
     if percent < 0.8 and percent >=0.5: outstr = 'Низкая'
     if percent < 0.9 and percent >=0.8: outstr = 'Средняя'
-    if percent < 1.2 and percent >=0.9: outstr = 'Высокая'
+    if percent < 1.5 and percent >=0.9: outstr = 'Высокая'
     if percent > 1.5:                   outstr = 'Очень высокая'
     return outstr
 
@@ -176,7 +144,7 @@ if active_tab == tabs[0]: #анализ блок
 
 elif active_tab == tabs[1]: #строительный блок
     print_all_btn = True
-    #adm_zone = st.sidebar.selectbox('Выберите административную зону',adm_names, )
+    adm_zone = ""# = st.sidebar.selectbox('Выберите административную зону',adm_names, )
     show_mfc = True
     build_type = st.sidebar.selectbox('Выберите тип учреждения',b_types_array, key='build_type')
     address = st.sidebar.text_input(f"Адрес будующего учреждения ({build_type})")
@@ -196,8 +164,8 @@ else:
 
 model_key = models_dict[model_type]
 st.sidebar.image('whiteCat.png', width=100)
-#c_locations['adm_name'] = c_locations['zid'].apply(lambda x: loc_names.loc[x == loc_names['cell_zid']]['adm_name'].values[0])
 #извлекаем ячейки выбранного в меню района Москвы
+
 if print_all_btn:
     df = c_locations.copy()#.loc[c_locations['zid'].isin(loc_names.loc[loc_names['adm_name'] == adm_zone]['cell_zid'])]
 else:
@@ -363,117 +331,30 @@ df['metaInfo'] = "" + \
             "<br/><b>ID МФЦ:</b> " + df['nearest_mfc_id'].apply(str)
             
 
-tooltip_template = '{metaInfo}'
-if not hide_model and model_key != '':
-    layers=[
-        pdk.Layer("ScatterplotLayer", #слой для отображения колонок вероятности постройки учреждения
-        data=df[['zid','lon', 'lat', 'metaInfo', model_key]],
-        get_position='[lon,lat]',
-        elevation = 1,# = "none",#=model_key,
-        elevation_scale=0,
-        get_radius=250,
-        get_fill_color=[ f"{model_key} * 42 - 15",f"255-{model_key}*42",10,f"100+{model_key}*22"],# f"{model_key} * 42 - 15"],
-        #get_border_color=[f"{model_key} * 42 - 15",f"255-{model_key}*42",20, 100],
-        pickable=True,
-        auto_highlight=True,
-        )]
-else:
-    layers=[]
 
-if show_mfc:
-
-    layers.append(pdk.Layer("ColumnLayer", #слой для отображения уже существующих МФЦ
-        data=mfc_df[['lon', 'lat', 'metaInfo']],
-        get_position='[lat,lon]',
-        elevation=100,#"WindowCount",
-        elevation_scale=1,
-        radius=50,
-        get_fill_color=[1,1,255, 200],
-        pickable=True,
-        auto_highlight=True,    
-        ))
-
-#Инициализируем карту районов и известных учреждений
-preview_lat = 55.752004
-preview_lon = 37.617734
 if is_run_build:
     preview_lat = df.loc[df['zid'] == id_cell]['lat'].values[0]
     preview_lon = df.loc[df['zid'] == id_cell]['lon'].values[0]
+elif len(df) > 0:
+    preview_lat = df['lat'].values[0]
+    preview_lon = df['lon'].values[0]
+else:
+    preview_lat = 55.752004
+    preview_lon = 37.617734
 
-world_map = pdk.Deck(
-    map_style=pdk.map_styles.ROAD,#'mapbox://styles/mapbox/light-v9',
-    api_keys = {'mapbox':'pk.eyJ1Ijoic2hhcjE3MCIsImEiOiJja3ZrMHl1azAyYmVuMndxNTZmOWgyeG9yIn0._UpnTtbmZ7hxPU_Ff5SMRw'},
-    map_provider='mapbox',
-    initial_view_state=pdk.ViewState(latitude=preview_lat,longitude=preview_lon,zoom=11,pitch=50,),
-     tooltip = {
-        "html": tooltip_template,
-        "style": {"backgroundColor": "black","color": "white"}
-    },
-    layers=layers,
-)
+#аналитика
+col_map, col_tooltip = st.columns((5,1))
 
-#world_map.deck_widget.on_click()
-
-click_code = """
-let mapboxglMap = document.getElementById('deck-container').children[1]
-
-mapboxglMap.onclick = async e => {
-if (deckInstance._lastPointerDownInfo != null ) {
-coords = await deckInstance._lastPointerDownInfo.object;
-console.log(coords.lat, coords.lon);
-window.open(`http://localhost:8501/?tab=Строительство&target_zid=${coords.zid}`);
-}
-}
-"""
-#let res = await axios.get(`http://localhost:8501/?tab=Строительство&target_zid=${coords.zid}`)
-
-library_code = '<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.24.0/axios.min.js" integrity="sha512-u9akINsQsAkG9xjc1cnGF4zw5TFDwkxuc9vUp5dltDWYCSmyd0meygbvgXrlc/z7/o4a19Fb5V0OUE58J7dcyw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>'
+master_block.show_map(small_dataset=df,
+                        mfc_df=mfc_df,
+                        hide_model=hide_model, 
+                        model_key=model_key , 
+                        adm_zone=adm_zone , 
+                        show_mfc=show_mfc,
+                        preview_lat=preview_lat,
+                        preview_lon=preview_lon,
+                        as_html = active_tab == tabs[1],
+                        map_container=col_map)
 
 
-
-if active_tab == tabs[1]:
-    random_file = f'{random.randint(10000,1000000)}_map.html'
-    world_map.to_html(random_file)
-    html_code = open(random_file).readlines()
-    html_code.insert(62,click_code)
-    html_code.insert(9,library_code)
-    os.remove(random_file)
-    #st.markdown(' '.join(html_code), unsafe_allow_html=True)
-    components.html(' '.join(html_code), height=600)
-elif active_tab == tabs[0]:
-    map_widget.pydeck_chart(world_map)
-#аналитикаЫ
-
-
-
-
-
-def print_main_tooltip():
-    global df,build_type
-    if build_type != '':
-        col1, col21, col22 = st.columns((1,2,2))
-        col01, col02 = st.columns((1,6))
-        col1.write(f"""
-        🔴 - высокая потребность
-        
-        🟢 - низкая потребность
-
-        🔵 - учреждения""")
-
-        if print_all_btn or adm_zone == '':
-            col02.write(f'''Вы выбрали всю Москву сейчас население в ней: {sum(df["customers_cnt_home"].values) + sum(df["customers_cnt_move"].values)} чел. на { df.shape[0]*0.25} км²''')
-        else:
-            col02.write(f'''Вы выбрали район "{adm_zone}" сейчас население в нём: {sum(df["customers_cnt_home"].values) + sum(df["customers_cnt_move"].values)} чел. на { df.shape[0]*0.25} км²''')
-            col22.metric("Проживающие кол-во", str(sum(df['customers_cnt_home'].values) + sum(df['customers_cnt_move'].values)) + " чел.", str(sum(df['customers_dlt_home'].values)+sum(df['customers_dlt_move'].values)) + " чел.")
-            col22.metric("Работающие кол-во", str(sum(df['customers_cnt_job'].values)) + " чел.", str(sum(df['customers_dlt_job'].values)) + " чел.")
-            col22.metric("Дневное кол-во", str(sum(df['customers_cnt_day'].values)) + " чел.", str(sum(df['customers_dlt_day'].values)) + " чел.")
-    else:
-
-        if print_all_btn or adm_zone == '':
-            st.write(f'''Вы выбрали всю Москву сейчас население в ней: {sum(c_locations["customers_cnt_home"].values) + sum(c_locations["customers_cnt_move"].values)} чел. на { c_locations.shape[0]*0.25} км²''')
-        else:
-            st.write(f'''Вы выбрали район "{adm_zone}" сейчас население в нём: {sum(c_locations["customers_cnt_home"].values) + sum(c_locations["customers_cnt_move"].values)} чел. на { c_locations.shape[0]*0.25} км²''')
-
-        st.write('Выберите тип учреждений, для отображения базовой статистики')
-
-print_main_tooltip()
+master_block.print_main_tooltip(df, c_locations,adm_zone,print_all_btn, metrics_column =col_tooltip )
