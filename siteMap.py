@@ -46,7 +46,8 @@ if "target_zid" in query_params:
                 build_type = 'МФЦ'
                 hide_model = True
                 show_mfc = True
-                active_tab = left_block.tabs[1]
+                tabs = left_block.tabs[1]
+                active_tab = tabs[1]#left_block.tabs[1]
 
                 st.info(f"Начат расчёт в ячейке **{id_cell}**, для **МФЦ {windows_count}**(окон) это может занять 5-7 минут!")
 else:
