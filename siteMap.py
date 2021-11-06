@@ -44,6 +44,8 @@ if "target_zid" in query_params:
                 adm_zone = ''
                 address = ''
                 build_type = 'МФЦ'
+                hide_model = True
+                show_mfc = True
                 st.info(f"Начат расчёт в ячейке **{id_cell}**, для **МФЦ {windows_count}**(окон) это может занять 5-7 минут!")
 else:
     tabs = left_block.tabs
@@ -362,32 +364,7 @@ if is_run_build:
             #Расчёт необходимости исходя из логистики
             df[model_key] = df[model_key] +  (df['nearest_mfc_id'].apply(lambda x: coeff_logistic(df.loc[df['nearest_mfc_id'] == x]['logistic'].mean())) /  df['logistic']).apply(lambda x: coeff_logistic(x)) #
 
-        sizeDataset = 7
-        max_flowrate = mfc_df.loc[mfc_df['global_id'] == -1]['max_people_flow'].values[0]
-        current_flowrate = mfc_df.loc[mfc_df['global_id'] == -1]['people_flow_rate'].values[0]
-        future_flowrate = mfc_df.loc[mfc_df['global_id'] == -1]['future_people_flow_rate'].values[0]
-        flowRate = np.array([random.randint(int(current_flowrate*0.7),int(current_flowrate*1.3)) for x in range(2017,2023)])
-        mfc_history = pd.DataFrame(data= {'date': [x for x in range(2017,2023)], 
-                                        'people_flow_rate' : flowRate, 
-                                        'strain': flowRate/max_flowrate})
-        base = alt.Chart(mfc_history).encode(
-                x = alt.X("date",    title='Год' ),
-            ).properties (
-            width = 1000
-            )
-        bars = base.mark_bar(size = 20).encode(y = alt.Y("people_flow_rate", title='Поток людей'),).properties (width = 1000)
-        line = base.mark_line(strokeWidth= 1.5,color = "red").encode(y=alt.Y('strain',title='Справляемость',axis=alt.Axis()),text = alt.Text('strain'),)
-        points = line.mark_circle(color='#00CED1',).encode(y=alt.Y('strain', axis=None))
-        points_text = base.mark_text(color='#00CED1',align='left',baseline='middle',dx=-10,dy=-10,).encode(y=alt.Y('strain', axis=None),text=alt.Text('strain'),)
-        charts = (bars +  line + points + points_text).resolve_scale(y = 'independent')
-        st.altair_chart(charts)
-        predic_text = ''
-        if future_flowrate > max_flowrate:
-            predic_text = f'Предполагается что в будущем нагрузка на построенное учредение будет расти, рекомендуется увеличить количество окон до: {int(1.5 * future_flowrate / people_to_one_window)}'
-        else:
-            predic_text = f'Предполагается что в близжайшем будущем нагрузка на построенное учредение не вырастет значительно, текущее количество окон даст достаточную справляемость'#
         
-        st.write('Выводы прогноза: ', predic_text)
 
 #Собираем шаблон подсказки для столбцов(ячеек) карты
 message.empty()
@@ -430,5 +407,32 @@ master_block.show_map(small_dataset=df,
                         as_html = active_tab == tabs[1],
                         map_container=col_map)
 
-
+if is_run_build:
+    sizeDataset = 7
+    max_flowrate = mfc_df.loc[mfc_df['global_id'] == -1]['max_people_flow'].values[0]
+    current_flowrate = mfc_df.loc[mfc_df['global_id'] == -1]['people_flow_rate'].values[0]
+    future_flowrate = mfc_df.loc[mfc_df['global_id'] == -1]['future_people_flow_rate'].values[0]
+    flowRate = np.array([random.randint(int(current_flowrate*0.7),int(current_flowrate*1.3)) for x in range(2017,2023)])
+    mfc_history = pd.DataFrame(data= {'date': [x for x in range(2017,2023)], 
+                                    'people_flow_rate' : flowRate, 
+                                    'strain': flowRate/max_flowrate})
+    base = alt.Chart(mfc_history).encode(
+            x = alt.X("date",    title='Год' ),
+        ).properties (
+        width = 1000
+        )
+    bars = base.mark_bar(size = 20).encode(y = alt.Y("people_flow_rate", title='Поток людей'),).properties (width = 1000)
+    line = base.mark_line(strokeWidth= 1.5,color = "red").encode(y=alt.Y('strain',title='Справляемость',axis=alt.Axis()),text = alt.Text('strain'),)
+    points = line.mark_circle(color='#00CED1',).encode(y=alt.Y('strain', axis=None))
+    points_text = base.mark_text(color='#00CED1',align='left',baseline='middle',dx=-10,dy=-10,).encode(y=alt.Y('strain', axis=None),text=alt.Text('strain'),)
+    charts = (bars +  line + points + points_text).resolve_scale(y = 'independent')
+    st.altair_chart(charts)
+    predic_text = ''
+    if future_flowrate > max_flowrate:
+        predic_text = f'Предполагается что в будущем нагрузка на построенное учредение будет расти, рекомендуется увеличить количество окон до: {int(1.5 * future_flowrate / people_to_one_window)}'
+    else:
+        predic_text = f'Предполагается что в близжайшем будущем нагрузка на построенное учредение не вырастет значительно, текущее количество окон даст достаточную справляемость'#
+    
+    st.write('Выводы прогноза: ', predic_text)
+    
 master_block.print_main_tooltip(df, c_locations,adm_zone,print_all_btn, metrics_column =col_tooltip )
