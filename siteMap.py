@@ -20,8 +20,19 @@ st.set_page_config(
         'About': "Проект КОД в мешке. *Рекомендательная система* для поиска наиболее оптимального построения раличных соц. учреждений! Наш GitHub: https://github.com/Shar170/KOD_v_meshke_MOS"
     }
     )
+st.title('Проект команды "KOD в мешке"')
+
 tabs = left_block.tabs
 active_tab = left_block.show_tabs()
+
+query_params = st.experimental_get_query_params()
+
+if "target_zid" in query_params:
+    id_cell = query_params["target_zid"][0]
+    st.info(f"Начат расчёт в ячейке {id_cell}, это может занять 5-7 минут!")
+    st.stop()
+else:
+    id_cell = 0
 
 
 # if active_tab == tabs[2]: #Раздел помощи
@@ -120,7 +131,6 @@ b_types_array = ['','МФЦ','Школа','Торговый центр']
 
 
 #создаём селект боксы и заголовки страницы
-st.title('Проект команды "KOD в мешке"')
 hider_model = 'Скрыть'
 is_run_build = None
 models_dict = {'Скрыть':'','Точечная модель':'mfc_chance_agreg','Отобразить':'mfc_chance_balance'}
@@ -155,17 +165,25 @@ elif active_tab == tabs[1]: #строительный блок
     show_mfc = True
     build_type = st.sidebar.selectbox('Выберите тип учреждения',b_types_array, key='build_type')
     address = ''# st.sidebar.text_input(f"Адрес будующего учреждения ({build_type})")
-    if build_type == 'МФЦ':
-        windows_count = st.sidebar.number_input("Количество окон", value=20)
-    if build_type == 'Школа':
-        windows_count = st.sidebar.number_input("Количество преподавателей", value=20)
-    if build_type == 'Торговый центр':
-        windows_count = st.sidebar.number_input("Предполагаемая проходимость людей в день", value=2000)
+
+
     if build_type != '':
-        model_type = st.sidebar.radio('Выберите модель расчётов',models_dict, key='model_type', help=model_help)        
+        adm_zone = st.sidebar.selectbox('Выберите административную зону',np.concatenate(( [''],adm_names)), help = "Целевой район Москвы")
+        model_type = st.sidebar.radio('Выберите модель расчётов',models_dict_cutter, key='model_type', help=model_help)      
+        
+        if adm_zone != '' and model_type != hider_model:
+            print_all_btn = False #st.sidebar.checkbox('Вывести для всех регионов', value=(adm_zone== '') )
+            model_type = 'Точечная модель' if st.sidebar.checkbox('Уточнить место постройки', value = False, help='Выделяет точки с наивысшей степенью необходимости постойки, в данном районе') else model_type
+ 
         if model_type != hider_model: 
             hide_model = False#st.sidebar.checkbox('Скрыть отображение модели?', value=False)
-            st.sidebar.write(f'Выберите двойный кликом ячейку, чтобы построить "{build_type}"')
+            if build_type == 'МФЦ':
+                windows_count = st.sidebar.number_input("Количество окон", value=20)
+            if build_type == 'Школа':
+                windows_count = st.sidebar.number_input("Количество преподавателей", value=20)
+            if build_type == 'Торговый центр':
+                windows_count = st.sidebar.number_input("Предполагаемая проходимость людей в день", value=2000)
+            st.sidebar.write(f'**Двойный кликом** выберите ячейку, чтобы построить в ней "{build_type}"')
         else:
             hide_model = True
             st.sidebar.write(f'Для начала выберите одну из математических моделей ')# "{build_type}"')

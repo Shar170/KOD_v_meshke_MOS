@@ -6,6 +6,9 @@ import shapefile
 import random
 import os
 
+ICON_URL = "https://cdn-icons-png.flaticon.com/512/1566/1566070.png"
+
+
 def read_shapefile(sf_shape):
     """
     Read a shapefile into a Pandas dataframe with a 'coords' 
@@ -57,7 +60,7 @@ def show_map(small_dataset,mfc_df, hide_model = True, model_key = '', adm_zone =
         max_from_df = small_dataset['mfc_chance_agreg'].max()
         small_dataset['mfc_chance_agreg'] = 5 * small_dataset['mfc_chance_agreg'] / max_from_df
 
-    if not hide_model and model_key != '':
+    if not hide_model and model_key != '': 
         layers=[
             pdk.Layer("ScatterplotLayer", #слой для отображения колонок вероятности постройки учреждения   Scatterplot
             data=small_dataset[['zid','lon', 'lat', 'metaInfo', model_key]],
@@ -81,22 +84,38 @@ def show_map(small_dataset,mfc_df, hide_model = True, model_key = '', adm_zone =
             get_color=[253, 128, 93],
             width_min_pixels=5,
             )]
+    icon_data = {
+        "url": ICON_URL,
+        "width": 300,
+        "height": 300,
+        "anchorY": 300,
+    }
+    mfc_df["icon_data"] = None
+    mfc_df['icon_data'] =  mfc_df['icon_data'].apply(lambda x: icon_data)
+    mfc_df['size'] =  mfc_df['icon_data'].apply(lambda x: 10)
 
     if show_mfc:
-        layers.append(pdk.Layer("ColumnLayer", #слой для отображения уже существующих МФЦ
-            data=mfc_df[['lon', 'lat', 'metaInfo']],
-            get_position='[lat,lon]',
-            elevation=100,#"WindowCount",
-            elevation_scale=1,
-            radius=50,
-            get_fill_color=[1,1,255, 200],
+        layers.append(pdk.Layer(type="IconLayer", #слой для отображения уже существующих МФЦ
+            data=mfc_df, 
+            get_icon="icon_data",
+            get_size='size',
+            size_scale=5,
+            get_position=["lat", "lon"],
             pickable=True,
-            auto_highlight=True,    
             ))
 
+        # layers.append(pdk.Layer("ColumnLayer", #слой для отображения уже существующих МФЦ
+        #     data=mfc_df[['lon', 'lat', 'metaInfo']],
+        #     get_position='[lat,lon]',
+        #     elevation=100,#"WindowCount",
+        #     elevation_scale=1,
+        #     radius=50,
+        #     get_fill_color=[1,1,255, 200],
+        #     pickable=True,
+        #     auto_highlight=True,    
+        #     ))
+
     #Инициализируем карту районов и известных учреждений
-
-
 
     world_map = pdk.Deck(
         map_style=pdk.map_styles.ROAD,#'mapbox://styles/mapbox/light-v9',
@@ -119,7 +138,7 @@ def show_map(small_dataset,mfc_df, hide_model = True, model_key = '', adm_zone =
         if (deckInstance._lastPointerDownInfo != null ) {
             coords = await deckInstance._lastPointerDownInfo.object;
             console.log(coords.lat, coords.lon);
-            window.open(`http://localhost:8501/?tab=Строительство&target_zid=${coords.zid}`);
+            window.open(`http://84.252.143.35:8501/?tab=Строительство&target_zid=${coords.zid}`);
         }
     }
     """
