@@ -366,8 +366,8 @@ if is_run_build:
         max_flowrate = mfc_df.loc[mfc_df['global_id'] == -1]['max_people_flow'].values[0]
         current_flowrate = mfc_df.loc[mfc_df['global_id'] == -1]['people_flow_rate'].values[0]
         future_flowrate = mfc_df.loc[mfc_df['global_id'] == -1]['future_people_flow_rate'].values[0]
-        flowRate = np.array([random.randint(int(current_flowrate*0.7),int(current_flowrate*1.3)) for x in range(sizeDataset)])
-        mfc_history = pd.DataFrame(data= {'date': [x for x in range(2017,2022)], 
+        flowRate = np.array([random.randint(int(current_flowrate*0.7),int(current_flowrate*1.3)) for x in range(2017,2023)])
+        mfc_history = pd.DataFrame(data= {'date': [x for x in range(2017,2023)], 
                                         'people_flow_rate' : flowRate, 
                                         'strain': flowRate/max_flowrate})
         base = alt.Chart(mfc_history).encode(
