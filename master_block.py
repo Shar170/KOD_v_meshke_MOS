@@ -41,7 +41,7 @@ def print_main_tooltip(small_dataset, full_dataset,adm_zone = '', print_all_btn 
     if adm_zone == '' :
         metrics_column.write("Москва")
     else:
-        metrics_column.write(f"Район {adm_zone}")
+        metrics_column.text(f"Район {adm_zone}",)
     if print_all_btn:
         small_dataset = full_dataset
         
@@ -52,14 +52,20 @@ def print_main_tooltip(small_dataset, full_dataset,adm_zone = '', print_all_btn 
 
 def show_map(small_dataset,mfc_df, hide_model = True, model_key = '', adm_zone = '', show_mfc = False, preview_lat = 55.752004,preview_lon = 37.617734, as_html = False, map_container = st):
     tooltip_template = '{metaInfo}'
+    if model_key == 'mfc_chance_agreg':
+        small_dataset['mfc_chance_agreg'] = small_dataset['mfc_chance_agreg'].apply(lambda x: 3.1415**(x))
+        max_from_df = small_dataset['mfc_chance_agreg'].max()
+        small_dataset['mfc_chance_agreg'] = 5 * small_dataset['mfc_chance_agreg'] / max_from_df
+
     if not hide_model and model_key != '':
         layers=[
-            pdk.Layer("ScatterplotLayer", #слой для отображения колонок вероятности постройки учреждения
+            pdk.Layer("ScatterplotLayer", #слой для отображения колонок вероятности постройки учреждения   Scatterplot
             data=small_dataset[['zid','lon', 'lat', 'metaInfo', model_key]],
             get_position='[lon,lat]',
             elevation = 1,# = "none",#=model_key,
             elevation_scale=0,
             get_radius=250,
+            #get_hex = 'zid',
             get_fill_color=[ f"{model_key} * 42 - 15",f"255-{model_key}*42",10,f"100+{model_key}*22"],# f"{model_key} * 42 - 15"],
             #get_border_color=[f"{model_key} * 42 - 15",f"255-{model_key}*42",20, 100],
             pickable=True,

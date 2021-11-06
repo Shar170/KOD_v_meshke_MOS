@@ -121,20 +121,23 @@ b_types_array = ['','МФЦ','Школа','Торговый центр']
 
 #создаём селект боксы и заголовки страницы
 st.title('Проект команды "KOD в мешке"')
-
+hider_model = 'Скрыть'
 is_run_build = None
-models_dict = {'Ничего':'','Точечная модель':'mfc_chance_agreg','Секторная модель':'mfc_chance_balance'}
-models_descr = {'Ничего':'','Точечная модель':'Точечная модель позволяет оценивать локальную необходимость простройки учреждения','Секторная модель':'Строит сектора дочерник к учреждениям областей. Полезна для оценки производительности учреждений'}
+models_dict = {'Скрыть':'','Точечная модель':'mfc_chance_agreg','Отобразить':'mfc_chance_balance'}
+models_dict_cutter = {'Скрыть':'','Отобразить':'mfc_chance_balance'}
+models_descr = {hider_model:'','Точечная модель':'Точечная модель позволяет оценивать локальную необходимость простройки учреждения','Отобразить':'Строит сектора дочерник к учреждениям областей. Полезна для оценки производительности учреждений'}
+model_help = '  **Точечная модель** - позволяет оценить необходимость простройки учреждения в точках на карте. Используйте для уточнения места постройки в районе \n\n **Секторная модель** - группирует точки в сектора по необходимости постройки учреждения. Полезна для оценки производительности учреждений'
+
 
 if active_tab == tabs[0]: #анализ блок
     build_type = st.sidebar.selectbox('Выберите тип учреждения',b_types_array, key='build_type')
     if build_type != '':
         show_mfc = (build_type != '') #st.sidebar.checkbox('Показать учреждения на карте', value=False)
         adm_zone = st.sidebar.selectbox('Выберите административную зону',np.concatenate(( [''],adm_names)), help = "Целевой район Москвы")
-        model_type = st.sidebar.radio('Выберите модель расчётов',models_dict, key='model_type')
-        st.sidebar.write(models_descr[model_type])
-        if adm_zone != '' :
-            print_all_btn = st.sidebar.checkbox('Вывести для всех регионов', value=(adm_zone== '') )
+        model_type = st.sidebar.radio('Модель расчётов',models_dict_cutter, key='model_type', help=model_help)
+        if adm_zone != '' and model_type != hider_model:
+            print_all_btn = False #st.sidebar.checkbox('Вывести для всех регионов', value=(adm_zone== '') )
+            model_type = 'Точечная модель' if st.sidebar.checkbox('Уточнить место постройки', value = False, help='Выделяет точки с наивысшей степенью необходимости постойки, в данном районе') else model_type
         else:
             print_all_btn = True
             
@@ -142,7 +145,7 @@ if active_tab == tabs[0]: #анализ блок
     else:
         show_mfc = False
         adm_zone = ''
-        model_type = 'Ничего'
+        model_type = hider_model
         print_all_btn = True
         hide_model = model_type == "Ничего"
 
@@ -159,9 +162,8 @@ elif active_tab == tabs[1]: #строительный блок
     if build_type == 'Торговый центр':
         windows_count = st.sidebar.number_input("Предполагаемая проходимость людей в день", value=2000)
     if build_type != '':
-        model_type = st.sidebar.radio('Выберите модель расчётов',models_dict, key='model_type', help='**Точечная модель** - позволяет оценить необходимость простройки учреждения в точках на карте. Используйте для уточнения  \n\n**Секторная модель** - группирует точки в сектора по необходимости постройки учреждения. Полезна для оценки производительности учреждений')
-        st.sidebar.write(models_descr[model_type])
-        if model_type != 'Ничего': 
+        model_type = st.sidebar.radio('Выберите модель расчётов',models_dict, key='model_type', help=model_help)        
+        if model_type != hider_model: 
             hide_model = False#st.sidebar.checkbox('Скрыть отображение модели?', value=False)
             st.sidebar.write(f'Выберите двойный кликом ячейку, чтобы построить "{build_type}"')
         else:
@@ -173,7 +175,7 @@ elif active_tab == tabs[1]: #строительный блок
     else:
         show_mfc = False
         adm_zone = ''
-        model_type = 'Ничего'
+        model_type = hider_model
         print_all_btn = True
         hide_model = True
 
@@ -185,7 +187,7 @@ model_key = models_dict[model_type]
 st.sidebar.image('whiteCat.png', width=100)
 #извлекаем ячейки выбранного в меню района Москвы
 
-if print_all_btn:
+if adm_zone == '':
     df = c_locations.copy()#.loc[c_locations['zid'].isin(loc_names.loc[loc_names['adm_name'] == adm_zone]['cell_zid'])]
 else:
     df = c_locations.loc[c_locations['zid'].isin(loc_names.loc[loc_names['adm_name'] == adm_zone]['cell_zid'])]
@@ -194,7 +196,7 @@ else:
 
 
 
-mfc_df = mfc_info_df.copy() if print_all_btn else mfc_info_df.loc[mfc_info_df['global_id'].isin(df['nearest_mfc_id'])]
+mfc_df = mfc_info_df.copy() if adm_zone == '' else mfc_info_df.loc[mfc_info_df['global_id'].isin(df['nearest_mfc_id'])]
 
 import re
 mfc_df['geodata_center'] = mfc_df['geodata_center'].apply(lambda x: [float(coord) for coord in re.findall(r'[0-9]+\.[0-9]+', str(x))] )
@@ -302,7 +304,7 @@ with st.spinner('Идёт просчёт, это займёт около 5 ми�
             df[model_key] = df[model_key] + (df['logistic'])
 
             df[model_key] = df[model_key].apply(lambda x: 1 + 5* x / 42070.344117)
-        elif model_key == 'mfc_chance_balance':
+        else:
             
             def coeff_flow(percent):
                 input_arr = [0.75,0.95,1.1,1.5,5]
@@ -327,8 +329,7 @@ with st.spinner('Идёт просчёт, это займёт около 5 ми�
             df[model_type] = df[model_type] +  df['nearest_mfc_distance'].apply(lambda x: coeff_distance(x / 1000.0) )
             #Расчёт необходимости исходя из логистики
             df[model_type] = df[model_type] +  (df['nearest_mfc_id'].apply(lambda x: coeff_logistic(df.loc[df['nearest_mfc_id'] == x]['logistic'].mean())) /  df['logistic']).apply(lambda x: coeff_logistic(x)) #
-        else:
-            st.error("Просчёт модели невозможет, ключ модели неверен!")
+
 
 #Собираем шаблон подсказки для столбцов(ячеек) карты
 message.empty()
