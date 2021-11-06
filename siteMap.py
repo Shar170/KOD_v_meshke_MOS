@@ -48,7 +48,7 @@ if "target_zid" in query_params:
                 show_mfc = True
                 tabs = left_block.tabs[1]
                 active_tab = tabs[1]#left_block.tabs[1]
-
+                print_all_btn = True
                 st.info(f"Начат расчёт в ячейке **{id_cell}**, для **МФЦ {windows_count}**(окон) это может занять 5-7 минут!")
 else:
     tabs = left_block.tabs
@@ -436,4 +436,4 @@ if is_run_build:
     
     st.write(predic_text)
 
-master_block.print_main_tooltip(df, c_locations,adm_zone,print_all_btn, metrics_column =col_tooltip )
+master_block.print_main_tooltip(df, c_locations,adm_zone,print_all_btn , metrics_column =col_tooltip )
