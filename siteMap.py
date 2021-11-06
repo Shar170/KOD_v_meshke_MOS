@@ -46,6 +46,8 @@ if "target_zid" in query_params:
                 build_type = 'МФЦ'
                 hide_model = True
                 show_mfc = True
+                active_tab = left_block.tabs[1]
+
                 st.info(f"Начат расчёт в ячейке **{id_cell}**, для **МФЦ {windows_count}**(окон) это может занять 5-7 минут!")
 else:
     tabs = left_block.tabs
@@ -216,10 +218,10 @@ if not is_run_build:
 
     else:
         st.sidebar.error("Something has gone terribly wrong.")
+    st.sidebar.image('whiteCat.png', width=100)
 
 
 model_key = models_dict[model_type] if not is_run_build else 'mfc_chance_balance'
-st.sidebar.image('whiteCat.png', width=100)
 #извлекаем ячейки выбранного в меню района Москвы
 
 if adm_zone == '':
@@ -404,7 +406,7 @@ master_block.show_map(small_dataset=df,
                         show_mfc=show_mfc,
                         preview_lat=preview_lat,
                         preview_lon=preview_lon,
-                        as_html = active_tab == tabs[1],
+                        as_html = active_tab == tabs[1] and not is_run_build,
                         map_container=col_map)
 
 if is_run_build:
@@ -434,5 +436,5 @@ if is_run_build:
         predic_text = f'Предполагается что в близжайшем будущем нагрузка на построенное учредение не вырастет значительно, текущее количество окон даст достаточную справляемость'#
     
     st.write('Выводы прогноза: ', predic_text)
-    
+
 master_block.print_main_tooltip(df, c_locations,adm_zone,print_all_btn, metrics_column =col_tooltip )
