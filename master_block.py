@@ -52,6 +52,8 @@ def print_main_tooltip(small_dataset, full_dataset,adm_zone = '', print_all_btn 
     metrics_column.metric("Дневное кол-во\n человек", str(sum(small_dataset['customers_cnt_day'].values)), str(sum(small_dataset['customers_dlt_day'].values)))
 
 def show_map(small_dataset,mfc_df, hide_model = True, model_key = '', adm_zone = '', show_mfc = False, preview_lat = 55.752004,preview_lon = 37.617734, as_html = False, map_container = st, windows_count = 20):
+    
+    
     tooltip_template = '{metaInfo}'
     if model_key == 'mfc_chance_agreg':
         small_dataset['mfc_chance_agreg'] = small_dataset['mfc_chance_agreg'].apply(lambda x: 3.1415**(x))
@@ -94,24 +96,13 @@ def show_map(small_dataset,mfc_df, hide_model = True, model_key = '', adm_zone =
 
     if show_mfc:
         layers.append(pdk.Layer(type="IconLayer", #слой для отображения уже существующих МФЦ
-            data=mfc_df, 
+            data=mfc_df[['lat', 'lon', 'metaInfo', 'icon_data', 'size']], 
             get_icon="icon_data",
             get_size='size',
             size_scale=5,
             get_position=["lat", "lon"],
             pickable=True,
             ))
-
-        # layers.append(pdk.Layer("ColumnLayer", #слой для отображения уже существующих МФЦ
-        #     data=mfc_df[['lon', 'lat', 'metaInfo']],
-        #     get_position='[lat,lon]',
-        #     elevation=100,#"WindowCount",
-        #     elevation_scale=1,
-        #     radius=50,
-        #     get_fill_color=[1,1,255, 200],
-        #     pickable=True,
-        #     auto_highlight=True,    
-        #     ))
 
     #Инициализируем карту районов и известных учреждений
 

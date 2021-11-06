@@ -245,7 +245,7 @@ message = st.empty()
 
 if is_run_build:
     with st.spinner('Идёт просчёт, это займёт около 5 минут...') as spinner:
-    
+        
         #id_cell = int(id_cell)
         neighbour_distance = 10 #km
         
@@ -330,8 +330,6 @@ if is_run_build:
             alphas = {'home':1.0,'job':1.0,'day':1.0, 'move':1.0}
             alphas_dlt = {'home':0.5,'job':0.5,'day':0.5, 'move':0.5}
 
-            stqdm.pandas(desc="Перерасчёт точесной модели оптимизации")
-
             for feature in ['home', 'job', 'day', 'move']:
                 df[model_key] = df[model_key] + alphas[feature] * df[f'customers_cnt_{feature}']
             for feature in ['home', 'job', 'day', 'move']:
@@ -342,7 +340,7 @@ if is_run_build:
 
             df[model_key] = df[model_key].apply(lambda x: 1 + 5* x / 42070.344117)
         else:
-            
+            st.write(len(df))
             def coeff_flow(percent):
                 input_arr = [0.75,0.95,1.1,1.5,5]
                 output_arr = [0.3,0.7,1.3,2,2]
@@ -355,7 +353,7 @@ if is_run_build:
 
             def coeff_logistic(log_persent):
                 input_arr = [0.5,1,1.5]
-                output_arr = [0.3,0.5,1.0,]
+                output_arr = [0.3,0.5,1.0]
                 return np.interp(log_persent, input_arr, output_arr, left=0.0,right=1.0)
         
             #Расчёт необходимости исходя из текущей загруженности
@@ -385,7 +383,7 @@ df['metaInfo'] = "" + \
             "<br/><b>ID ячейки:</b> " + df['zid'].apply(str) + \
             "<br/><b>ID МФЦ:</b> " + df['nearest_mfc_id'].apply(str)
         
-
+st.write()
 if is_run_build:
     preview_lat = df.loc[df['zid'] == id_cell]['lat'].values[0]
     preview_lon = df.loc[df['zid'] == id_cell]['lon'].values[0]
