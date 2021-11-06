@@ -1,3 +1,4 @@
+from threading import current_thread
 import pandas as pd
 import numpy as np
 import pydeck as pdk
@@ -9,6 +10,8 @@ import geopy.distance
 
 import master_block
 import left_block
+
+import altair as alt
 
 #инициализация параметров страницы
 st.set_page_config(
@@ -22,17 +25,30 @@ st.set_page_config(
     )
 st.title('Проект команды "KOD в мешке"')
 
-tabs = left_block.tabs
-active_tab = left_block.show_tabs()
 
 query_params = st.experimental_get_query_params()
 
+id_cell = 0
+is_run_build = False
+
+
 if "target_zid" in query_params:
     id_cell = query_params["target_zid"][0]
-    st.info(f"Начат расчёт в ячейке {id_cell}, это может занять 5-7 минут!")
-    st.stop()
+    if id_cell.isdigit():
+        id_cell = int(id_cell)
+        if "windows_count" in query_params:
+            windows_count = query_params["windows_count"][0]
+            if windows_count.isdigit():
+                windows_count = int(windows_count)
+                is_run_build = True 
+                adm_zone = ''
+                address = ''
+                build_type = 'МФЦ'
+                st.info(f"Начат расчёт в ячейке **{id_cell}**, для **МФЦ {windows_count}**(окон) это может занять 5-7 минут!")
 else:
-    id_cell = 0
+    tabs = left_block.tabs
+    active_tab = left_block.show_tabs()
+
 
 
 # if active_tab == tabs[2]: #Раздел помощи
@@ -132,76 +148,75 @@ b_types_array = ['','МФЦ','Школа','Торговый центр']
 
 #создаём селект боксы и заголовки страницы
 hider_model = 'Скрыть'
-is_run_build = None
 models_dict = {'Скрыть':'','Точечная модель':'mfc_chance_agreg','Отобразить':'mfc_chance_balance'}
 models_dict_cutter = {'Скрыть':'','Отобразить':'mfc_chance_balance'}
 models_descr = {hider_model:'','Точечная модель':'Точечная модель позволяет оценивать локальную необходимость простройки учреждения','Отобразить':'Строит сектора дочерник к учреждениям областей. Полезна для оценки производительности учреждений'}
 model_help = '  **Точечная модель** - позволяет оценить необходимость простройки учреждения в точках на карте. Используйте для уточнения места постройки в районе \n\n **Секторная модель** - группирует точки в сектора по необходимости постройки учреждения. Полезна для оценки производительности учреждений'
 
-
-if active_tab == tabs[0]: #анализ блок
-    build_type = st.sidebar.selectbox('Выберите тип учреждения',b_types_array, key='build_type')
-    if build_type != '':
-        show_mfc = (build_type != '') #st.sidebar.checkbox('Показать учреждения на карте', value=False)
-        adm_zone = st.sidebar.selectbox('Выберите административную зону',np.concatenate(( [''],adm_names)), help = "Целевой район Москвы")
-        model_type = st.sidebar.radio('Модель расчётов',models_dict_cutter, key='model_type', help=model_help)
-        if adm_zone != '' and model_type != hider_model:
-            print_all_btn = False #st.sidebar.checkbox('Вывести для всех регионов', value=(adm_zone== '') )
-            model_type = 'Точечная модель' if st.sidebar.checkbox('Уточнить место постройки', value = False, help='Выделяет точки с наивысшей степенью необходимости постойки, в данном районе') else model_type
+if not is_run_build:
+    if active_tab == tabs[0]: #анализ блок
+        build_type = st.sidebar.selectbox('Выберите тип учреждения',b_types_array, key='build_type')
+        if build_type != '':
+            show_mfc = (build_type != '') #st.sidebar.checkbox('Показать учреждения на карте', value=False)
+            adm_zone = st.sidebar.selectbox('Выберите административную зону',np.concatenate(( [''],adm_names)), help = "Целевой район Москвы")
+            model_type = st.sidebar.radio('Модель расчётов',models_dict_cutter, key='model_type', help=model_help)
+            if adm_zone != '' and model_type != hider_model:
+                print_all_btn = False #st.sidebar.checkbox('Вывести для всех регионов', value=(adm_zone== '') )
+                model_type = 'Точечная модель' if st.sidebar.checkbox('Уточнить место постройки', value = False, help='Выделяет точки с наивысшей степенью необходимости постойки, в данном районе') else model_type
+            else:
+                print_all_btn = True
+                
+            hide_model = model_type == "Ничего"#st.sidebar.checkbox('Скрыть отображение модели?', value=False)
         else:
+            show_mfc = False
+            adm_zone = ''
+            model_type = hider_model
             print_all_btn = True
+            hide_model = model_type == "Ничего"
+
+    elif active_tab == tabs[1]: #строительный блок
+        print_all_btn = True
+        adm_zone = ""# = st.sidebar.selectbox('Выберите административную зону',adm_names, )
+        show_mfc = True
+        build_type = st.sidebar.selectbox('Выберите тип учреждения',b_types_array, key='build_type')
+        address = ''# st.sidebar.text_input(f"Адрес будующего учреждения ({build_type})")
+
+
+        if build_type != '':
+            adm_zone = st.sidebar.selectbox('Выберите административную зону',np.concatenate(( [''],adm_names)), help = "Целевой район Москвы")
+            model_type = st.sidebar.radio('Выберите модель расчётов',models_dict_cutter, key='model_type', help=model_help)      
             
-        hide_model = model_type == "Ничего"#st.sidebar.checkbox('Скрыть отображение модели?', value=False)
-    else:
-        show_mfc = False
-        adm_zone = ''
-        model_type = hider_model
-        print_all_btn = True
-        hide_model = model_type == "Ничего"
+            if adm_zone != '' and model_type != hider_model:
+                print_all_btn = False #st.sidebar.checkbox('Вывести для всех регионов', value=(adm_zone== '') )
+                model_type = 'Точечная модель' if st.sidebar.checkbox('Уточнить место постройки', value = False, help='Выделяет точки с наивысшей степенью необходимости постойки в данном районе') else model_type
+    
+            if model_type != hider_model: 
+                hide_model = False#st.sidebar.checkbox('Скрыть отображение модели?', value=False)
+                if build_type == 'МФЦ':
+                    windows_count = st.sidebar.number_input("Количество окон", value=20)
+                if build_type == 'Школа':
+                    windows_count = st.sidebar.number_input("Количество преподавателей", value=20)
+                if build_type == 'Торговый центр':
+                    windows_count = st.sidebar.number_input("Предполагаемая проходимость людей в день", value=2000)
+                st.sidebar.write(f'**Двойный кликом** выберите ячейку, чтобы построить в ней "{build_type}"')
+            else:
+                hide_model = True
+                st.sidebar.write(f'Для начала выберите одну из математических моделей ')# "{build_type}"')
 
-elif active_tab == tabs[1]: #строительный блок
-    print_all_btn = True
-    adm_zone = ""# = st.sidebar.selectbox('Выберите административную зону',adm_names, )
-    show_mfc = True
-    build_type = st.sidebar.selectbox('Выберите тип учреждения',b_types_array, key='build_type')
-    address = ''# st.sidebar.text_input(f"Адрес будующего учреждения ({build_type})")
-
-
-    if build_type != '':
-        adm_zone = st.sidebar.selectbox('Выберите административную зону',np.concatenate(( [''],adm_names)), help = "Целевой район Москвы")
-        model_type = st.sidebar.radio('Выберите модель расчётов',models_dict_cutter, key='model_type', help=model_help)      
-        
-        if adm_zone != '' and model_type != hider_model:
-            print_all_btn = False #st.sidebar.checkbox('Вывести для всех регионов', value=(adm_zone== '') )
-            model_type = 'Точечная модель' if st.sidebar.checkbox('Уточнить место постройки', value = False, help='Выделяет точки с наивысшей степенью необходимости постойки, в данном районе') else model_type
- 
-        if model_type != hider_model: 
-            hide_model = False#st.sidebar.checkbox('Скрыть отображение модели?', value=False)
-            if build_type == 'МФЦ':
-                windows_count = st.sidebar.number_input("Количество окон", value=20)
-            if build_type == 'Школа':
-                windows_count = st.sidebar.number_input("Количество преподавателей", value=20)
-            if build_type == 'Торговый центр':
-                windows_count = st.sidebar.number_input("Предполагаемая проходимость людей в день", value=2000)
-            st.sidebar.write(f'**Двойный кликом** выберите ячейку, чтобы построить в ней "{build_type}"')
+            is_run_build = False
+            #     st.sidebar.error(f"{id_cell} такой ячейки не существует!")
         else:
+            show_mfc = False
+            adm_zone = ''
+            model_type = hider_model
+            print_all_btn = True
             hide_model = True
-            st.sidebar.write(f'Для начала выберите одну из математических моделей ')# "{build_type}"')
 
-        is_run_build = False
-        #     st.sidebar.error(f"{id_cell} такой ячейки не существует!")
     else:
-        show_mfc = False
-        adm_zone = ''
-        model_type = hider_model
-        print_all_btn = True
-        hide_model = True
-
-else:
-    st.sidebar.error("Something has gone terribly wrong.")
+        st.sidebar.error("Something has gone terribly wrong.")
 
 
-model_key = models_dict[model_type]
+model_key = models_dict[model_type] if not is_run_build else 'mfc_chance_balance'
 st.sidebar.image('whiteCat.png', width=100)
 #извлекаем ячейки выбранного в меню района Москвы
 
@@ -219,15 +234,14 @@ mfc_df = mfc_info_df.copy() if adm_zone == '' else mfc_info_df.loc[mfc_info_df['
 import re
 mfc_df['geodata_center'] = mfc_df['geodata_center'].apply(lambda x: [float(coord) for coord in re.findall(r'[0-9]+\.[0-9]+', str(x))] )
 
-
-
 map_widget = st.empty()
 
-with st.spinner('Идёт просчёт, это займёт около 5 минут...') as spinner:
-    message = st.empty()
+message = st.empty()
+
+if is_run_build:
+    with st.spinner('Идёт просчёт, это займёт около 5 минут...') as spinner:
     
-    if is_run_build:
-        id_cell = int(id_cell)
+        #id_cell = int(id_cell)
         neighbour_distance = 10 #km
         
         #print("Средняя необходимость по москве:", df[model_key].mean())
@@ -340,14 +354,40 @@ with st.spinner('Идёт просчёт, это займёт около 5 ми�
                 return np.interp(log_persent, input_arr, output_arr, left=0.0,right=1.0)
         
             #Расчёт необходимости исходя из текущей загруженности
-            df[model_type] = df['nearest_mfc_id'].apply(lambda x: coeff_flow(mfc_df.loc[mfc_df['global_id'] == x]['people_flow_rate'].values[0] / mfc_df.loc[mfc_df['global_id'] == x]['max_people_flow'].values[0]) )
+            df[model_key] = df['nearest_mfc_id'].apply(lambda x: coeff_flow(mfc_df.loc[mfc_df['global_id'] == x]['people_flow_rate'].values[0] / mfc_df.loc[mfc_df['global_id'] == x]['max_people_flow'].values[0]) )
             #Расчёт необходимости исходя из будущей загруженности
-            df[model_type] = df[model_type] + 0.5 * df['nearest_mfc_id'].apply(lambda x: coeff_flow(mfc_df.loc[mfc_df['global_id'] == x]['future_people_flow_rate'].values[0] / mfc_df.loc[mfc_df['global_id'] == x]['max_people_flow'].values[0]) )
+            df[model_key] = df[model_key] + 0.5 * df['nearest_mfc_id'].apply(lambda x: coeff_flow(mfc_df.loc[mfc_df['global_id'] == x]['future_people_flow_rate'].values[0] / mfc_df.loc[mfc_df['global_id'] == x]['max_people_flow'].values[0]) )
             #Расчёт необходимости исходя из удалённости 
-            df[model_type] = df[model_type] +  df['nearest_mfc_distance'].apply(lambda x: coeff_distance(x / 1000.0) )
+            df[model_key] = df[model_key] +  df['nearest_mfc_distance'].apply(lambda x: coeff_distance(x / 1000.0) )
             #Расчёт необходимости исходя из логистики
-            df[model_type] = df[model_type] +  (df['nearest_mfc_id'].apply(lambda x: coeff_logistic(df.loc[df['nearest_mfc_id'] == x]['logistic'].mean())) /  df['logistic']).apply(lambda x: coeff_logistic(x)) #
+            df[model_key] = df[model_key] +  (df['nearest_mfc_id'].apply(lambda x: coeff_logistic(df.loc[df['nearest_mfc_id'] == x]['logistic'].mean())) /  df['logistic']).apply(lambda x: coeff_logistic(x)) #
 
+        sizeDataset = 7
+        max_flowrate = mfc_df.loc[mfc_df['global_id'] == -1]['max_people_flow'].values[0]
+        current_flowrate = mfc_df.loc[mfc_df['global_id'] == -1]['people_flow_rate'].values[0]
+        future_flowrate = mfc_df.loc[mfc_df['global_id'] == -1]['future_people_flow_rate'].values[0]
+        flowRate = np.array([random.randint(current_flowrate*0.7,current_flowrate*1.3) for x in range(sizeDataset)])
+        mfc_history = pd.DataFrame(data= {'date': [x for x in range(2017,2022)], 
+                                        'people_flow_rate' : flowRate, 
+                                        'strain': flowRate/max_flowrate})
+        base = alt.Chart(mfc_history).encode(
+                x = alt.X("date",    title='Год' ),
+            ).properties (
+            width = 1000
+            )
+        bars = base.mark_bar(size = 20).encode(y = alt.Y("people_flow_rate", title='Поток людей'),).properties (width = 1000)
+        line = base.mark_line(strokeWidth= 1.5,color = "red").encode(y=alt.Y('strain',title='Справляемость',axis=alt.Axis()),text = alt.Text('strain'),)
+        points = line.mark_circle(color='#00CED1',).encode(y=alt.Y('strain', axis=None))
+        points_text = base.mark_text(color='#00CED1',align='left',baseline='middle',dx=-10,dy=-10,).encode(y=alt.Y('strain', axis=None),text=alt.Text('strain'),)
+        charts = (bars +  line + points + points_text).resolve_scale(y = 'independent')
+        st.altair_chart(charts)
+        predic_text = ''
+        if future_flowrate > max_flowrate:
+            predic_text = f'Предполагается что в будущем нагрузка на построенное учредение будет расти, рекомендуется увеличить количество окон до: {int(1.5 * future_flowrate / people_to_one_window)}'
+        else:
+            predic_text = f'Предполагается что в близжайшем будущем нагрузка на построенное учредение не вырастет значительно, текущее количество окон даст достаточную справляемость'#
+        
+        st.write('Выводы прогноза: ', predic_text)
 
 #Собираем шаблон подсказки для столбцов(ячеек) карты
 message.empty()
@@ -364,8 +404,7 @@ df['metaInfo'] = "" + \
             ("<br/><b>Необходимость постройки учреждения:</b> <br/>" + df[model_key].apply(lambda m: '🔴'*int(min(5,m))) + df[model_key].apply(lambda m: '⭕'*(5-int(m)))) if model_key != '' else '' + \
             "<br/><b>ID ячейки:</b> " + df['zid'].apply(str) + \
             "<br/><b>ID МФЦ:</b> " + df['nearest_mfc_id'].apply(str)
-            
-
+        
 
 if is_run_build:
     preview_lat = df.loc[df['zid'] == id_cell]['lat'].values[0]

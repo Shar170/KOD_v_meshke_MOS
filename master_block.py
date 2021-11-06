@@ -5,8 +5,10 @@ import pydeck as pdk
 import shapefile
 import random
 import os
+from config import config
 
 ICON_URL = "https://cdn-icons-png.flaticon.com/512/1566/1566070.png"
+
 
 
 def read_shapefile(sf_shape):
@@ -37,10 +39,6 @@ def load_shp(shp_path, dbf_path):
 
 def print_main_tooltip(small_dataset, full_dataset,adm_zone = '', print_all_btn = True , metrics_column = st):
 
-    col1, col2, col3 = st.columns((3,2,2))
-    #colR, colM  = st.columns((2,5))
-    #col1.image('map_legend_h.png')
-
     if adm_zone == '' :
         metrics_column.write("Москва")
     else:
@@ -53,7 +51,7 @@ def print_main_tooltip(small_dataset, full_dataset,adm_zone = '', print_all_btn 
     metrics_column.metric("Работающие кол-во\n человек", str(sum(small_dataset['customers_cnt_job'].values)) , str(sum(small_dataset['customers_dlt_job'].values)))
     metrics_column.metric("Дневное кол-во\n человек", str(sum(small_dataset['customers_cnt_day'].values)), str(sum(small_dataset['customers_dlt_day'].values)))
 
-def show_map(small_dataset,mfc_df, hide_model = True, model_key = '', adm_zone = '', show_mfc = False, preview_lat = 55.752004,preview_lon = 37.617734, as_html = False, map_container = st):
+def show_map(small_dataset,mfc_df, hide_model = True, model_key = '', adm_zone = '', show_mfc = False, preview_lat = 55.752004,preview_lon = 37.617734, as_html = False, map_container = st, windows_count = 20):
     tooltip_template = '{metaInfo}'
     if model_key == 'mfc_chance_agreg':
         small_dataset['mfc_chance_agreg'] = small_dataset['mfc_chance_agreg'].apply(lambda x: 3.1415**(x))
@@ -138,7 +136,7 @@ def show_map(small_dataset,mfc_df, hide_model = True, model_key = '', adm_zone =
         if (deckInstance._lastPointerDownInfo != null ) {
             coords = await deckInstance._lastPointerDownInfo.object;
             console.log(coords.lat, coords.lon);
-            window.open(`http://84.252.143.35:8501/?tab=Строительство&target_zid=${coords.zid}`);
+            window.open(`http://"""+config['host']+""":8501/?tab=Строительство&target_zid=${coords.zid}&windows_count="""+ str(windows_count) + """`);
         }
     }
     """
@@ -146,7 +144,7 @@ def show_map(small_dataset,mfc_df, hide_model = True, model_key = '', adm_zone =
 
     library_code = '<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.24.0/axios.min.js" integrity="sha512-u9akINsQsAkG9xjc1cnGF4zw5TFDwkxuc9vUp5dltDWYCSmyd0meygbvgXrlc/z7/o4a19Fb5V0OUE58J7dcyw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>'
 
-
+    map_legend = '🔴 - Высокая потребность в учреждении  🟡 - Средняя потребность в учреждении    🟢 - Низкая потребность в учреждении'
 
     if as_html: #active_tab == tabs[1]:
         random_file = f'{random.randint(10000,1000000)}_map.html'
@@ -158,7 +156,10 @@ def show_map(small_dataset,mfc_df, hide_model = True, model_key = '', adm_zone =
         #st.markdown(' '.join(html_code), unsafe_allow_html=True)
         with map_container:
             components.html(' '.join(html_code), height=600)
+            st.write(map_legend)
     else:
         map_container.pydeck_chart(world_map)
+        map_container.write(map_legend)
+
 
 
