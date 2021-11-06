@@ -151,7 +151,7 @@ hider_model = 'Скрыть'
 models_dict = {'Скрыть':'','Точечная модель':'mfc_chance_agreg','Отобразить':'mfc_chance_balance'}
 models_dict_cutter = {'Скрыть':'','Отобразить':'mfc_chance_balance'}
 models_descr = {hider_model:'','Точечная модель':'Точечная модель позволяет оценивать локальную необходимость простройки учреждения','Отобразить':'Строит сектора дочерник к учреждениям областей. Полезна для оценки производительности учреждений'}
-model_help = ' **Математическая модель** - отображает сгруппированные точки в сектора по необходимости постройки учреждения.'
+model_help = 'В **режиме отображения** карта разбивается на зоны по необходимости в постройке учреждения. Зеленая область говорит о хорошей справляемости, красная сигнализирует о высокой нуждаемости в дополнительном учреждении.'
 
 if not is_run_build:
     if active_tab == tabs[0]: #анализ блок
@@ -366,7 +366,7 @@ if is_run_build:
         max_flowrate = mfc_df.loc[mfc_df['global_id'] == -1]['max_people_flow'].values[0]
         current_flowrate = mfc_df.loc[mfc_df['global_id'] == -1]['people_flow_rate'].values[0]
         future_flowrate = mfc_df.loc[mfc_df['global_id'] == -1]['future_people_flow_rate'].values[0]
-        flowRate = np.array([random.randint(current_flowrate*0.7,current_flowrate*1.3) for x in range(sizeDataset)])
+        flowRate = np.array([random.randint(int(current_flowrate*0.7),int(current_flowrate*1.3)) for x in range(sizeDataset)])
         mfc_history = pd.DataFrame(data= {'date': [x for x in range(2017,2022)], 
                                         'people_flow_rate' : flowRate, 
                                         'strain': flowRate/max_flowrate})
