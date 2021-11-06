@@ -44,7 +44,7 @@ if "target_zid" in query_params:
                 adm_zone = ''
                 address = ''
                 build_type = 'МФЦ'
-                hide_model = True
+                hide_model = False
                 show_mfc = True
                 tabs = left_block.tabs[1]
                 active_tab = tabs[1]#left_block.tabs[1]
